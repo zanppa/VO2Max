@@ -11,7 +11,7 @@
 
 
 #define SETTINGS_MAGIC     0xAB
-#define SETTINGS_VERSION   2
+#define SETTINGS_VERSION   3
 
 // Settings that are stored to eeprom (4 kB max)
 typedef struct __attribute__ ((packed)) _settings_t {
@@ -23,6 +23,7 @@ typedef struct __attribute__ ((packed)) _settings_t {
     float userWeight;             // User weight
     int wifiDataRate;             // Wifi data rate, 0=all, 1=less, 2=minimal
     int integrationTime;          // Integration time for vo2 etc. calculation, default 15 seconds
+    int storeDataRate;            // Data rate to store values to memory, multiples of integrationTime
     bool hrsensor_enable;         // Enable BLE heart rate sensor support
     bool co2sensor_enable;        // CO2 sensor active
     bool wifi_enable;             // Enable wifi data transmit support

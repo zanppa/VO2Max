@@ -37,13 +37,13 @@ const char *TAG_SENSOR = "sensorTask";
 
 #define I2C_DEFAULT_TIMEOUT   (320000)  // time = this * APB 80 MHz clock. 80 000 = 1 ms
 
-esp_err_t initialize_I2C(int i2c_port=0, int pinSDA=21, int pinSCL=22);
+esp_err_t initialize_I2C(i2c_port_t i2c_port=I2C_PORT, int pinSDA=21, int pinSCL=22);
 esp_err_t reset_I2C();
 
 // Sensor definitions
-SDPSensor flow_sensor(0x26);    // SDP801-500Pa has address of 0x26
-BMP388Sensor pressure_sensor(0x77); // BMP388 atmospheric pressure sensor (address selected 0x77, other setting is 0x76)
-O2Sensor oxygen_sensor(0x73);   // DFRobot Sen0322 oxygen sensor (my was default 0x73 with both address pins "low")
+SDPSensor flow_sensor(0x26, I2C_PORT);    // SDP801-500Pa has address of 0x26
+BMP388Sensor pressure_sensor(0x77, I2C_PORT); // BMP388 atmospheric pressure sensor (address selected 0x77, other setting is 0x76)
+O2Sensor oxygen_sensor(0x73, I2C_PORT);   // DFRobot Sen0322 oxygen sensor (my was default 0x73 with both address pins "low")
 
 
 // TODO: Move to config?
@@ -54,11 +54,16 @@ O2Sensor oxygen_sensor(0x73);   // DFRobot Sen0322 oxygen sensor (my was default
 // Time to integrate the oxygen consumption volume (1 minute)
 static int INTEGRATION_TIME = 15000;  // Update every 15 seconds by default
 #define NORMALIZATION_TIME  60000     // ms, normalize to this value, e.g. normalize to 60 seconds (e.g. veMean = liters / 1 minute)
+static unsigned int STORE_RATE = 0;   // How often store the values to buffer, default=every integration step
 
 static uint16_t errorCounter = 0;
 
 // Struct where sensor data is be copied on command
 sensorData_t sensorData;
+
+// Structure where data is buffered
+storeData_t bufferData[STORE_BUFFER_SIZE] = {0};
+uint16_t bufferPosition = 0;
 
 typedef enum {
   IDLE = 0,
@@ -94,6 +99,7 @@ static const float pressureThreshold = 1.0; // Threshold when breathing out (Pa)
 static float integratedPressure = 0.0;      // Integrated value of pressure for one breath
 static float integrationTotal = 0.0;        // Total integration over the INTEGRATION_TIME
 static uint32_t integrationTime = 0;        // How many times we integrated the pressure --> time
+static unsigned int storeIntervalTime = 0;  // Interval when to store values to buffer
 static bool integratePressure = false;      // Whether we should integrate the pressure value or not
 static bool newBreathData = false;          // Is there a new single breath analyzed
 static uint32_t breathIntervalCount = 0;    // Interval between two breaths, on-going counter
@@ -137,7 +143,7 @@ float initialO2 = 20.93;     // Initial O2 level to be used in VO2 measurement, 
 static float currentO2 = initialO2;      // Latest O2 measurement result
 static float depletedO2;    // How much O2 was depleted from exhaust air
 
-static bool useCO2Sensor = true;    // Use or do not ues CO2 sensor if it is available
+static bool useCO2Sensor = false;    // Use or do not use CO2 sensor if it is available, default is not
 float initialCO2 = 0.03;    // Initial CO2 level, about constant 0.03 % in atmosphere
 static float currentCO2 = initialCO2;   // Latest CO2 measurement result
 static float producedCO2 = 0.0;   // How much CO2 was produced in exhalation (%)
@@ -152,12 +158,12 @@ static float averageO2level = 0.0;
 static float averageCO2level = 0.0;
 static uint32_t averagingTime = 0;
 
-static float vo2 = 0.0;    // One minute integral, liters/minute
+static float vo2 = 0.0;    // Integral over predefined time (e.g. 15s or minute), liters/minute
 static float vo2Max = 0.0;  // Maximum of previous, liters/minute
 
 static float weight;      // User's weight
 
-static float vco2 = 0.0;    // One minute integral, liters/minute
+static float vco2 = 0.0;    // Integral over predefined time (e.g. 15s or minute), liters/minute
 static float vco2Max = 0.0; // Maximum of previous, liters/minute
 
 
@@ -207,6 +213,10 @@ void inline read_flow(void)
   prevPressure1 = prevPressure2;
   prevPressure2 = currentPressure;
 
+
+  integrationTime += FLOWINTERVAL;      // For total integration (average over 1 minute for example)
+  breathIntervalCount += FLOWINTERVAL;  // Measure the time between two exhales
+
   // Read the sensor
   if(flow_sensor.readDiffPressureTemperature(currentPressure, new_temperature) != ESP_OK)
   {
@@ -225,9 +235,6 @@ void inline read_flow(void)
 #endif
 
   if(currentPressure < 0.0) currentPressure = 0.0;
-
-  integrationTime += FLOWINTERVAL;      // For total integration (average over 1 minute for example)
-  breathIntervalCount += FLOWINTERVAL;  // Measure the time between two exhales
 
   if(integratePressure)
   {
@@ -397,7 +404,7 @@ bool calculate_volumes()
     veMean *= VATPStoSTDP;  // Convert volume to STDP condition, l/minute
 
     // Calculate average oxygen consumption
-    if(averagingTime) {
+    if(averagingTime) { // Avoid divide by zero
       averageO2level /= (float)averagingTime;
       averageCO2level /= (float)averagingTime;
       averageO2level *= 0.01;  // From %
@@ -413,6 +420,27 @@ bool calculate_volumes()
 
       if(vo2 > vo2Max) vo2Max = vo2;
       if(vco2 > vco2Max) vco2Max = vco2;
+    }
+    else {
+      // No breathing during the integration time at all
+      // so averaging periods is zero --> values should be zeroed
+      vo2 = 0.0;
+      vco2 = 0.0;
+    }
+
+    // Check when to store values to buffer and then store them
+    storeIntervalTime++;
+    if(storeIntervalTime > STORE_RATE) {
+      bufferData[bufferPosition].vo2 = vo2;
+      bufferData[bufferPosition].ve = veMean;
+      bufferData[bufferPosition].vco2 = vco2;
+      bufferData[bufferPosition].resp_rate = lastBreathInterval ? (60000.0 / (float)lastBreathInterval) : 0;
+      bufferData[bufferPosition].hr = sensorData.hr;  // If available
+      bufferData[bufferPosition].hr = sensorData.rr;  // If available...
+
+      bufferPosition++;
+      if(bufferPosition >= STORE_BUFFER_SIZE) bufferPosition = 0;
+      storeIntervalTime = 0;
     }
 
     // Ready for next round
@@ -438,8 +466,8 @@ void copy_sensor_data()
   sensorData.vo2 = 1000.0 * vo2 / weight;  // ml / kg / min
   sensorData.vo2Max = 1000.0 * vo2Max / weight;    // ml / kg / min
   sensorData.ve = lastBreathVolume;    // liters
-  sensorData.veMax = veMax;    // liters
-  sensorData.veMean = veMean;  // liters
+  sensorData.veMax = veMax;    // liters / min
+  sensorData.veMean = veMean;  // liters / min
   sensorData.vco2 = 1000.0 * vco2 / weight;   // ml / kg / min
   sensorData.vco2Max = 1000.0 * vco2Max / weight; // ml / kg / min
   sensorData.rq = vco2 / vo2;
@@ -487,6 +515,9 @@ void resetCalculations(void)
 
   vco2 = 0.0;
   vco2Max = 0.0;
+
+  bufferPosition = 0;
+  memset(bufferData, 0, sizeof(bufferData));
 }
 
 
@@ -511,7 +542,6 @@ void sensorTask(void *params)
   copy_sensor_data();
   xQueueOverwrite(sensorQueue, &sensorData);
 
-
   // Initialize the extra sensor queue
   sensorExtraQueue = xQueueCreate(10, sizeof(sensorExtraData_t));
   configASSERT(sensorExtraQueue);
@@ -520,6 +550,7 @@ void sensorTask(void *params)
   if(initialize_I2C(I2C_PORT, PIN_SDA, PIN_SCL) == ESP_OK) {
 
     // Initialize flow sensor
+    ESP_LOGI(TAG_SENSOR, "Init: Starting flow sensor initialization");
     flow_sensor.reset();
     if(flow_sensor.begin() == ESP_OK)
     {
@@ -532,6 +563,7 @@ void sensorTask(void *params)
     }
 
     // Initialize ambient pressure (and temperature) sensor
+    ESP_LOGI(TAG_SENSOR, "Init: Starting temperature/pressure sensor initialization");
     if(pressure_sensor.begin(SLEEP_MODE, OVERSAMPLING_X4, OVERSAMPLING_SKIP, IIR_FILTER_4, TIME_STANDBY_40MS) == ESP_OK)
     {
       pressure_sensor.startNormalConversion();
@@ -541,7 +573,9 @@ void sensorTask(void *params)
       ESP_LOGE(TAG_SENSOR, "Init: Pressure sensor init failed");
     }
 
+
     // Initialize oxygen sensor
+    ESP_LOGI(TAG_SENSOR, "Init: Starting oxygen sensor initialization");
     if(oxygen_sensor.begin() == ESP_OK)
     {
       xEventGroupSetBits(sensorStatus, SENSOR_HAS_O2);
@@ -558,6 +592,22 @@ void sensorTask(void *params)
     // Handle I2C initialization failure somehow here?
   }
 
+
+  // Make sure the storage buffer is reset with zeroes
+  bufferPosition = 0;
+  memset(bufferData, 0, sizeof(bufferData));
+
+  // Initialize any variables needed from global settings
+  INTEGRATION_TIME = global_settings.integrationTime;
+  STORE_RATE = global_settings.storeDataRate;
+  flowCorrectionFactor = global_settings.flowCorrectionFactor;
+  weight = global_settings.userWeight;
+  if(xEventGroupGetBits(sensorStatus) & SENSOR_HAS_CO2)
+    useCO2Sensor = global_settings.co2sensor_enable;  // Only allow enabling if we have the sensor
+
+
+  // Signal that we have initialized all sensors --> can start other tasks
+  xEventGroupSetBits(sensorStatus, SENSOR_INIT_DONE);
 
   xLastWakeTime = xTaskGetTickCount();
   while(1)
@@ -739,8 +789,22 @@ void sensorSetConfiguration(void)
   xEventGroupSetBits(sensorEvent, SENSOR_EVENT_RECONF);
 }
 
+// Get (constant) pointer to storage buffer
+const storeData_t *getStorageBuffer(void)
+{
+  return bufferData;
+}
+
+// Get current (next) write position in the buffer
+unsigned int getStorageBufferPosition(void)
+{
+  return bufferPosition;
+}
+
+
+
 // Initialize I2C communication channel
-esp_err_t initialize_I2C(int i2c_port, int pinSDA, int pinSCL)
+esp_err_t initialize_I2C(i2c_port_t i2c_port, int pinSDA, int pinSCL)
 {
     int intr_flag_disable = 0;
 
@@ -785,5 +849,5 @@ esp_err_t initialize_I2C(int i2c_port, int pinSDA, int pinSCL)
 
 esp_err_t reset_I2C()
 {
-  flow_sensor.reset();
+  return flow_sensor.reset();
 }

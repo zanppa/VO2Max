@@ -31,7 +31,6 @@
 
 #define SDPSENSOR_I2C_CMD_LEN       2
 #define SDPSENSOR_TEMPERATURE_SCALE (200.0f)
-#define I2C_NO_TIMEOUT              0  // non-blocking
 
 const TickType_t I2C_DEFAULT_TIMEOUT = pdMS_TO_TICKS(1);   // Maximum 1 ms wait if bus is busy
 

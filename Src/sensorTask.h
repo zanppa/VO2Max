@@ -8,7 +8,7 @@
 
 #include <freertos/FreeRTOS.h>
 
-#define I2C_PORT      0
+#define I2C_PORT      (I2C_NUM_0)
 #define PIN_SDA       21
 #define PIN_SCL       22
 
@@ -25,6 +25,7 @@
 #define SENSOR_HAS_PRESSURE 0x0008
 #define SENSOR_VO2_VALID    0x0020      // Cleared wherever the data is read
 #define SENSOR_VCO2_VALID   0x0040      // Cleared wherever the data is used
+#define SENSOR_INIT_DONE    0x0080      // Sensor initialization is done
 
 
 
@@ -72,6 +73,19 @@ typedef struct _sensorData_t {
 } sensorData_t;
 
 
+#define STORE_BUFFER_SIZE   1024      // How many data samples to store
+
+// Structure of data to buffer
+typedef struct _storeData_t {
+  float vo2;
+  float ve;
+  float vco2;
+  float resp_rate;
+  float hr;
+  float rr;
+} storeData_t;
+
+
 
 
 void sensorTask(void *params);
@@ -90,5 +104,8 @@ void sensorO2Calibrate(void);
 void sensorSetConfiguration(void);
 
 bool sensorHasErrors(void);
+
+const storeData_t *getStorageBuffer(void);
+unsigned int getStorageBufferPosition(void);
 
 #endif

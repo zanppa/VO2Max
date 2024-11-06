@@ -52,9 +52,8 @@
 
 #include "BMP388sensor.h"
 
-#define I2C_NO_TIMEOUT              0  // non-blocking
 
-static const TickType_t ticks_to_wait = pdMS_TO_TICKS(1);
+static const TickType_t ticks_to_wait = pdMS_TO_TICKS(5);
 const char *TAG_BMPSENSOR = "BMP388sensor";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +88,7 @@ uint8_t BMP388Sensor::begin(Mode mode, 																// Initialise BMP388 devi
     return err;
   }
   err = i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&chipId, 1,
-              I2C_NO_TIMEOUT);    // Read the device ID	
+              ticks_to_wait);    // Read the device ID	
   if (err != ESP_OK)     			// Check the device ID
   {
     ESP_LOGE(TAG_BMPSENSOR, "Device ID read failed (%s)", esp_err_to_name(err));
@@ -108,7 +107,7 @@ uint8_t BMP388Sensor::begin(Mode mode, 																// Initialise BMP388 devi
     return err;
   }
   // Read the trim parameters into the params structure
-  err = i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&params, sizeof(params), I2C_NO_TIMEOUT);
+  err = i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&params, sizeof(params), ticks_to_wait);
   if (err != ESP_OK)     			// Check the device ID
   {
     ESP_LOGE(TAG_BMPSENSOR, "Read calibration failed (%s)", esp_err_to_name(err));
@@ -176,7 +175,7 @@ uint8_t BMP388Sensor::reset()																					// Reset the BMP388 barometer
     ESP_LOGE(TAG_BMPSENSOR, "Write event failed (%s)", esp_err_to_name(err));
     return err;
   }
-  err = i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&event.reg, 1, I2C_NO_TIMEOUT);
+  err = i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&event.reg, 1, ticks_to_wait);
   if(err != ESP_OK) {
     ESP_LOGE(TAG_BMPSENSOR, "Read event failed (%s)", esp_err_to_name(err));
     return err;
@@ -391,7 +390,7 @@ uint16_t BMP388Sensor::getFIFOWatermark()															// Retrieve the FIFO wat
 	uint16_t fifoWatermark;
   uint8_t cmd[1] = { BMP388_FIFO_WTM_0 };
   esp_err_t err = i2c_master_write_to_device(i2c_port, i2c_addr, cmd, 1, ticks_to_wait);
-  i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t*)&fifoWatermark, sizeof(fifoWatermark), I2C_NO_TIMEOUT);
+  i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t*)&fifoWatermark, sizeof(fifoWatermark), ticks_to_wait);
 	//readBytes(BMP388_FIFO_WTM_0, (uint8_t*)&fifoWatermark, sizeof(fifoWatermark));
 	return fifoWatermark;
 }
@@ -441,7 +440,7 @@ uint16_t BMP388Sensor::getFIFOLength()																// Get the FIFO length
 	uint16_t fifoLength; 
   uint8_t cmd[1] = { BMP388_FIFO_LENGTH_0 };
   esp_err_t err = i2c_master_write_to_device(i2c_port, i2c_addr, cmd, 1, ticks_to_wait);
-  i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t*)&fifoLength, sizeof(fifoLength), I2C_NO_TIMEOUT);
+  i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t*)&fifoLength, sizeof(fifoLength), ticks_to_wait);
 	//readBytes(BMP388_FIFO_LENGTH_0, (uint8_t*)&fifoLength, sizeof(fifoLength));
 	return fifoLength;
 }
@@ -466,7 +465,7 @@ FIFOStatus BMP388Sensor::getFIFOData(volatile float *temperature, volatile float
 	while (count < fifoLength)																				// Parse the data until the FIFO is empty
 	{
     esp_err_t err = i2c_master_write_to_device(i2c_port, i2c_addr, cmd, 1, ticks_to_wait);
-    i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&data[0], packetSize, I2C_NO_TIMEOUT);
+    i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&data[0], packetSize, ticks_to_wait);
 		//readBytes(BMP388_FIFO_DATA, &data[0], packetSize);							// Acquire the next data packet
 		uint8_t header = data[0];																				// Acquire the data header
 		int32_t adcTemp, adcPres;																				// Declare the raw temperature and pressure variables
@@ -545,7 +544,7 @@ uint32_t BMP388Sensor::getSensorTime()																// Get the sensor time
 	uint32_t sensorTime;
   uint8_t cmd[1] = { BMP388_SENSORTIME_0 };
   esp_err_t err = i2c_master_write_to_device(i2c_port, i2c_addr, cmd, 1, ticks_to_wait);
-  i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&sensorTime, sizeof(sensorTime - 1), I2C_NO_TIMEOUT);
+  i2c_master_read_from_device(i2c_port, i2c_addr, (uint8_t *)&sensorTime, sizeof(sensorTime - 1), ticks_to_wait);
 	//readBytes(BMP388_SENSORTIME_0, (uint8_t*)&sensorTime, sizeof(sensorTime - 1));
 	return sensorTime & 0x00FFFFFF;
 }

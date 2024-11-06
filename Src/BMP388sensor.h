@@ -224,7 +224,7 @@ enum WatchdogTimout {											// I2C watchdog time-out
 
 class BMP388Sensor {															// Derive the BMP388Sensor class from the Device class
 	public:
-		BMP388Sensor(uint8_t i2c_addr, i2c_port_t i2c_port = 0);												// BMP388Sensor object for I2C operation
+		BMP388Sensor(uint8_t i2c_addr, i2c_port_t i2c_port = I2C_NUM_0);												// BMP388Sensor object for I2C operation
 		uint8_t begin(Mode mode = SLEEP_MODE, 												// Initialise the barometer with arguments
 									Oversampling presOversampling = OVERSAMPLING_X16, 
 									Oversampling tempOversampling = OVERSAMPLING_X2, 

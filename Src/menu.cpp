@@ -13,6 +13,7 @@
 
 #include "buttonsTask.h"
 #include "sensorTask.h"
+#include "wifiTask.h"
 #include "BLE_HRBelt.h"
 
 void saveSettings() {}
@@ -23,6 +24,7 @@ extern volatile uint32_t seconds_from_start;
 
 // Forward declarations
 void func_closemenu();
+void func_sendstored();
 void func_submenu(void *p1, void *p2);
 void func_floatnum(void *p1, void *p2);
 void func_hrconnect();
@@ -41,18 +43,18 @@ void printButtonLabels(const char *upper, const char *lower)
 
 class MenuItem {
 public:
-  MenuItem(char *label) : label{ label } { }
+  MenuItem(const char *label) : label{ label } { }
   virtual void init() { }
   const char *get_label() const { return label; }
   virtual void click() { }
   virtual void draw() { tft.print(label); }
 private:
-  char *label;
+  const char *label;
 };
 
 class CheckMenuItem : public MenuItem {
 public:
-  CheckMenuItem(char *label, bool *value) : MenuItem{ label }, value{ value } {}
+  CheckMenuItem(const char *label, bool *value) : MenuItem{ label }, value{ value } {}
   const bool get_value() const { return *value; }
   virtual void click() override { *value = !(*value); } // Switch when clicked
   virtual void draw() override { MenuItem::draw(); tft.print(" "); tft.print((*value) ? "[Yes]" : "[No ]"); }
@@ -62,7 +64,7 @@ private:
 
 class FunctionMenuItem : public MenuItem {
 public:
-  FunctionMenuItem(char *label, void (*fn)()) : MenuItem{ label }, fn{ fn } { }
+  FunctionMenuItem(const char *label, void (*fn)()) : MenuItem{ label }, fn{ fn } { }
   virtual void draw() override { MenuItem::draw(); tft.print("..."); }
   virtual void click() override { if(fn) (fn)(); }
 private:
@@ -72,7 +74,7 @@ private:
 // Call function with 2 pre-defined parameters
 class Function2MenuItem : public MenuItem {
 public:
-  Function2MenuItem(char *label, void (*fn)(void *p1, void *p2), void *p1, void *p2) : MenuItem{ label }, fn{ fn }, p1{ p1 }, p2{ p2 } { }
+  Function2MenuItem(const char *label, void (*fn)(void *p1, void *p2), void *p1, void *p2) : MenuItem{ label }, fn{ fn }, p1{ p1 }, p2{ p2 } { }
   virtual void draw() override { MenuItem::draw(); tft.print("..."); }
   virtual void click() override { if(fn) (fn)(p1, p2); }
 private:
@@ -83,7 +85,7 @@ private:
 
 class SelectMenuItem : public MenuItem {
 public:
-  SelectMenuItem(char *label, int *variable, char **choices, int *values, uint8_t count) : MenuItem{label}, variable{variable}, choices{choices}, values{values}, count{count}, current{0} { }
+  SelectMenuItem(const char *label, int *variable, const char **choices, int *values, uint8_t count) : MenuItem{label}, variable{variable}, choices{choices}, values{values}, count{count}, current{0} { }
   virtual void init() override
   {
     for(int i=0;i<count;i++) {  // Set selection to the selected value
@@ -98,7 +100,7 @@ public:
   virtual void draw() override { MenuItem::draw(); tft.print(" ["); tft.print(choices[current]); tft.print("]"); }
 private:
   int *variable;
-  char **choices;
+  const char **choices;
   int *values;
   uint8_t count;
   uint8_t current;
@@ -144,33 +146,38 @@ private:
   const int max_on_screen = 5;
 };
 
-static char *wifiDataRateNames[3] = {"All", "Less", "Min"};
+static const char *wifiDataRateNames[3] = {"All", "Less", "Min"};
 static int wifiDataRates[3] = {0, 1, 2};
 
-static char *intTimeNames[5] = {"5s", "10s", "15s", "30s", "60s"};
+static const char *intTimeNames[5] = {"5s", "10s", "15s", "30s", "60s"};
 static int intTimeValues[5] = {5000, 10000, 15000, 30000, 60000};
 
+static const char *storeRateNames[5] = {"All", "1:2", "1:3", "1:5", "1:10"};
+static int storeRateValues[5] = {0, 1, 2, 4, 9};
 
 static floatNumParams_t weightParams = {"Weight", 20.0, 200.0, 0.5};
 
-static const int defaultmenu_count = 12;
+static const int defaultmenu_count = 14;
 static MenuItem *defaultmenu_items[defaultmenu_count] = {
-                            new FunctionMenuItem("Recalibrate O2", &func_calibrateO2), 
-                            new FunctionMenuItem("Calibrate flow", &func_calibrateFlow),
+                            new FunctionMenuItem("Done", &func_closemenu),
+                            new FunctionMenuItem("Send stored", &func_sendstored),
                             new Function2MenuItem("Set weight", &func_floatnum, &global_settings.userWeight, (void*)&weightParams),
                             new SelectMenuItem("Interval", &global_settings.integrationTime, intTimeNames, intTimeValues, 5),
+                            new SelectMenuItem("Store rate", &global_settings.storeDataRate, storeRateNames, storeRateValues, 5),
+                            new FunctionMenuItem("Recalibrate O2", &func_calibrateO2), 
+                            new FunctionMenuItem("Calibrate flow", &func_calibrateFlow),
+                            new CheckMenuItem("Wifi", &global_settings.wifi_enable),
+                            new SelectMenuItem("Wifi send", &global_settings.wifiDataRate, wifiDataRateNames, wifiDataRates, 3),
                             new CheckMenuItem("CO2 sensor", &global_settings.co2sensor_enable),
                             new CheckMenuItem("G Cheetah", &global_settings.cheetah_enable),
                             new CheckMenuItem("HR sensor", &global_settings.hrsensor_enable),
                             new FunctionMenuItem("HR scan", &func_hrconnect),
-                            new CheckMenuItem("Wifi", &global_settings.wifi_enable),
-                            new SelectMenuItem("Wifi send", &global_settings.wifiDataRate, wifiDataRateNames, wifiDataRates, 3),
-                            new FunctionMenuItem("Reset values", &func_resetValues),
-                            new FunctionMenuItem("Done", &func_closemenu)
+                            new FunctionMenuItem("Start over", &func_resetValues)
+                            
 };
 
 
-Menu default_menu = Menu(defaultmenu_items, defaultmenu_count, defaultmenu_count-1);
+Menu default_menu = Menu(defaultmenu_items, defaultmenu_count, 0);  // Start with 1st item selected (0=Done...)
 Menu *current_menu = &default_menu;
 
 
@@ -183,6 +190,12 @@ void func_closemenu()
   quit_menu = true;
 }
 
+// Request wifi to send stored data
+void func_sendstored()
+{
+  // We abuse the wifi config a bit to send request to send the stored buffer...
+  wifiSetConfig(WIFI_SEND_STORED, NULL, pdMS_TO_TICKS(100));
+}
 
 // Change menu to another menu pointed by parameter p1
 void func_submenu(void *p1, void *p2)

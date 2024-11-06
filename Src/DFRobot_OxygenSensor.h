@@ -39,7 +39,7 @@ public:
    * @n     Default to use i2c address of 0x73 without passing parameters
    * @return None
    */
-  O2Sensor(uint8_t addr = O2SENSOR_ADDRESS_3, uint8_t port = 0);
+  O2Sensor(uint8_t addr = O2SENSOR_ADDRESS_3, i2c_port_t port = I2C_NUM_0);
   ~O2Sensor();
   /**
    * @fn begin
@@ -92,7 +92,7 @@ public:
 private:
   esp_err_t readFlash();
   uint8_t _addr;
-  uint8_t _port;
+  i2c_port_t _port;
   float _Key = 0.0;                          ///< oxygen key value
   float oxygenData[O2SENSOR_OCOUNT] = {0.00};        // Array for averaging
   uint8_t n_data_received;

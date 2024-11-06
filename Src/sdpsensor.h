@@ -36,7 +36,7 @@ class SDPSensor {
          *                   ESP boards have two I2C peripherals.
          *                   Defaults to 0.
          */
-        SDPSensor(uint8_t i2c_addr, i2c_port_t i2c_port = 0);
+        SDPSensor(uint8_t i2c_addr, i2c_port_t i2c_port = I2C_NUM_0);
 
 
         /**

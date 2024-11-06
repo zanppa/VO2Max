@@ -91,7 +91,7 @@ static Gauge *screen1[] = {
   new LabelGauge(20, 55, "VO2"),
   new Gauge(90, 55, &sensor_data_buf.vo2),
   new LabelGauge(20, 80, "VE"),
-  new Gauge(90, 80, &sensor_data_buf.ve),
+  new Gauge(90, 80, &sensor_data_buf.veMean),
 //  new ArcGauge(160, 80, &sensor_data_buf.flow_value, 4, 0, 200.0, 48),
 };
 
@@ -177,6 +177,7 @@ void drawStatusBar()
   uint16_t hours;
   uint8_t minutes;
   uint16_t status;
+  static uint16_t maxBufferPos = 0;
 
   // Convert seconds to hours,minutes and seconds
   hours = seconds / 3600;
@@ -194,12 +195,12 @@ void drawStatusBar()
   if(volts > 3.9) tft.setTextColor(TFT_GREEN, TFT_BLACK);
   else if(volts > 3.7) tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   else tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.setCursor(0, 120, 2);
+  tft.setCursor(0, 116, 2);
   tft.printf("%3.1f V", volts);
 
   // Write feature status on the bottom
   status = sensorGetStatus();
-  tft.setCursor(45, 120, 2);
+  tft.setCursor(45, 116, 2);
 
   if(status & SENSOR_HAS_FLOW) tft.setTextColor(TFT_GREEN, TFT_BLACK);
   else tft.setTextColor(TFT_RED, TFT_BLACK);
@@ -238,6 +239,14 @@ void drawStatusBar()
     tft.print("E");
   }
 
+  // Write storage buffer position
+  status = getStorageBufferPosition();
+  if(status > maxBufferPos) maxBufferPos = status;
+  // TODO: Need to handle reset here also!
+  tft.fillRect(0, 131, maxBufferPos/5, 3, TFT_RED);
+  tft.fillRect(maxBufferPos/5+1, 131, 205, 3, TFT_DARKGREY);
+
+
   // Buttons
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   tft.drawString("M", 220, 0, 4);
@@ -252,34 +261,65 @@ void statusInitial()
   uint32_t left = 180;
   bool ready = false;
   uint8_t buttons = 0, oldButtons = 0;
+  uint16_t sensors = sensorGetStatus();
 
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   tft.setCursor(180, 105, 4);
   tft.print("Skip");
 
-  tft.setCursor(20, 14, 4);
-  tft.print("Warming up...");
-
-  while(!ready)
+  // Warn if O2 sensor was not found
+  if(!(sensors & SENSOR_HAS_O2))
   {
-    if(seconds_from_start >= target) ready = true;
+    tft.setTextColor(TFT_RED, TFT_BLACK);
+    tft.setCursor(20, 14, 4);
+    tft.println("Warning!");
+    tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    tft.println("Oxygen sensor");
+    tft.print("not found");
+    while(!waitButtonPress(&buttons, pdMS_TO_TICKS(1000)));
+  }
+  // Warn if flow (pressure) sensor was not found
+  if(!(sensors & SENSOR_HAS_FLOW))
+  {
+    tft.fillRect(0, 20, 240, 80, TFT_BLACK); // Clear  
+    tft.setTextColor(TFT_RED, TFT_BLACK);
+    tft.setCursor(20, 14, 4);
+    tft.println("Warning!");
+    tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    tft.println("Flow sensor");
+    tft.print("not found");
+    while(!waitButtonPress(&buttons, pdMS_TO_TICKS(1000)));
+  }
 
-    // Print the warm-up time left
-    left = target - seconds_from_start;
-    tft.fillRect(48, 48, 60, 12, TFT_BLACK); // Clear
-    tft.setCursor(48, 48, 7);
-    tft.printf("%03d", left);
+  tft.fillRect(0, 20, 240, 80, TFT_BLACK); // Clear
 
-    // Print current oxygen level
-    sensorGetData(&sensor_data_buf);
-    tft.setCursor(20, 105, 4);
-    tft.printf("O2  %04.1f", sensor_data_buf.o2);
-    tft.print("%");
+  // No point warming up the O2 sensor if it was not properly initialized/found
+  if(sensors & SENSOR_HAS_O2) 
+  {
+    tft.setCursor(20, 14, 4);
+    tft.print("Warming up...");
 
-    // If "skip" button is pressed or timeout
-    waitButtonPress(&buttons, pdMS_TO_TICKS(1000));
-    if(buttons == BUTTON_LOWER) ready = true;
+    while(!ready)
+    {
+      if(seconds_from_start >= target) ready = true;
+
+      // Print the warm-up time left
+      left = target - seconds_from_start;
+      tft.fillRect(48, 48, 60, 12, TFT_BLACK); // Clear
+      tft.setCursor(48, 48, 7);
+      tft.printf("%03d", left);
+
+      // Print current oxygen level
+      sensorGetData(&sensor_data_buf);
+      tft.setCursor(20, 105, 4);
+      tft.printf("O2  %04.1f", sensor_data_buf.o2);
+      tft.print("%");
+
+      // If "skip" button is pressed or timeout
+      waitButtonPress(&buttons, pdMS_TO_TICKS(1000));
+      if(buttons == BUTTON_LOWER) ready = true;
+    }
   }
   tft.fillScreen(TFT_BLACK);
 
@@ -287,7 +327,9 @@ void statusInitial()
   if(sensor_data_buf.o2 < 20.0)
   {
     tft.setCursor(20, 14, 4);
+    tft.setTextColor(TFT_RED, TFT_BLACK);
     tft.println("Warning!");
+    tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
     tft.println("Initial O2 level low!");
     tft.setCursor(180, 105, 4);
     tft.print("Skip");

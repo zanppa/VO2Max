@@ -22,10 +22,17 @@ typedef struct _wifiSetting_t {
 } wifiSetting_t;
 #define WIFI_SETTING_NAME     0x01  // Set wifi station name
 #define WIFI_SETTING_PASS     0x02  // Set wifi password
+#define WIFI_SEND_STORED      0x10  // Send stored data over UDP, not really a setting...
 
+
+#define WIFI_PACKET_REALTIME    0x01
+#define WIFI_PACKET_STORED      0x02
 
 // Structure of the UDP data packets, i.e. variables
 typedef struct __attribute__ ((packed)) _wifiUdpPacket_t {
+  uint8_t status;   // Status bits (0x01 = real time data, 0x02 = stored data)
+  uint8_t dummy1;   // Reserved -- for packing
+  uint16_t errors;
   float flow;
   float o2;
   float ve;
@@ -37,7 +44,6 @@ typedef struct __attribute__ ((packed)) _wifiUdpPacket_t {
   float exhale_temperature;
   float hr;
   float rr;
-  uint16_t errors;
 } wifiUdpPacket_t;
 
 

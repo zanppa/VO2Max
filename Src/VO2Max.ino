@@ -28,18 +28,23 @@
  * PSRAM: Disabled
  *
  * Remember to modify the TFT_eSPI configuration file to select T-Display!
+ * Select this one line in "user_setup_select.h"
+ * #include <User_Setups/Setup25_TTGO_T_Display.h>    // Setup file for ESP32 and TTGO T-Display ST7789V SPI bus TFT
  *
  * With NimBLE-Arduino the code just barely fits into default partition.
- * In case of problems, one can use
+ * In case of problems (e.g. if program does not fit with debug level = info), one can use
  *    Huge APP (3 MB No OTA / 1 MB SPIFFS)
  * partition scheme to make the program fit.
  *
  */
 
 /*
+ * External boards requirements
+ *  - esp32 by Espressif (3.0.2 --> 3.0.5)
+ *
  * External library requirements
- * - tft_espi
- * - NimBLE_Arduino
+ * - tft_espi (version 2.5.43)
+ * - NimBLE_Arduino (version 1.4.1)
  */
 
 
@@ -48,6 +53,7 @@
 
 //#include "driver/adc.h"
 #include "esp_adc_cal.h"
+#include "driver/gpio.h"
 
 #include <TFT_eSPI.h>
 
@@ -76,13 +82,13 @@ settings_t global_settings = {
   .userWeight = 80.0,
   .wifiDataRate = 0,
   .integrationTime = 15000,
-  .hrsensor_enable = true,
+  .hrsensor_enable = false,
   .co2sensor_enable = false,
   .wifi_enable = true,
   .cheetah_enable = false,
   .HRSensorAddress = {0, 0, 0, 0, 0, 0},
-  .wifiStationName = {'E', 'S', 'P', '3', '2', '_', 0},
-  .wifiPassword = {'1', '2', '3', '4', '5', '6', '7', '8', 0},
+  .wifiStationName = {'V', 'O', '2', 'M', 'A', 'X', '_', 0},
+  .wifiPassword = {'4', '3', '2', '1', 'a', 's', 'd', 'f', 0},
 };
 
 
@@ -118,6 +124,8 @@ void debugPrintConfig(void)
   Serial.println(global_settings.wifiDataRate);
   Serial.print(" Int time: ");
   Serial.println(global_settings.integrationTime);
+  Serial.print(" Store rate: ");
+  Serial.println(global_settings.storeDataRate);
   Serial.print(" HR Sensor: ");
   Serial.println(global_settings.hrsensor_enable);
   Serial.print(" CO2 sensor: ");
@@ -256,6 +264,8 @@ void setup() {
 
   // Create other tasks
   xTaskCreate(sensorTask, "sensor", 4096, nullptr, PRIORITY_SENSORTASK, &task_sensorTask);
+  sensorWaitEvent(SENSOR_INIT_DONE, pdMS_TO_TICKS(1000));
+
   //xTaskCreate(buttonTask, "buttons", 1024, nullptr, PRIORITY_BUTTONTASK, &task_buttonTask); // Alternative way to handle buttons
   xTaskCreate(wifiTask, "wifi", 4096, nullptr, PRIORITY_WIFITASK, &task_wifiTask);
   xTaskCreate(BLETask, "BLE", 4096, nullptr, PRIORITY_BLETASK, &task_BLETask);

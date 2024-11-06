@@ -399,6 +399,8 @@ bool BLE_GC::notify()
 
   cheetahCharacteristics.setValue((uint8_t *)&variables, sizeof(variables));
   cheetahCharacteristics.notify();
+
+  return true;
 }
 
 

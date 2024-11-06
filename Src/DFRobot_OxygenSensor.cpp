@@ -23,12 +23,11 @@
 
 #include "DFRobot_OxygenSensor.h"
 
-#define I2C_NO_TIMEOUT              0  // non-blocking
-static const TickType_t ticks_to_wait = pdMS_TO_TICKS(1); // Default timeout
+static const TickType_t ticks_to_wait = pdMS_TO_TICKS(2); // Default timeout
 static const TickType_t ticks_begin = pdMS_TO_TICKS(100);
 const char *TAG_O2SENSOR = "O2sensor";
 
-O2Sensor::O2Sensor(uint8_t addr, uint8_t port) : _addr{addr}, _port{port} { n_data_received = 0; }
+O2Sensor::O2Sensor(uint8_t addr, i2c_port_t port) : _addr{addr}, _port{port} { n_data_received = 0; }
 
 O2Sensor::~O2Sensor() { }
 
@@ -37,12 +36,14 @@ esp_err_t O2Sensor::begin()
   uint8_t cmd[1] = {OXYGEN_DATA_REGISTER};
   esp_err_t err = i2c_master_write_to_device(_port, _addr, cmd, 1, ticks_begin);
 
-  if(err != ESP_OK)
+  if(err != ESP_OK) {
     ESP_LOGE(TAG_O2SENSOR, "O2Sensor::begin failed: %s", esp_err_to_name(err));
-  else
+    return err;
+  } else {
     ESP_LOGI(TAG_O2SENSOR, "O2Sensor initialized at addr 0x%x", _addr);
+  }
 
-  readFlash();  // Read calibration value from sensor memory
+  err = readFlash();  // Read calibration value from sensor memory
 
   return err;
 }
@@ -56,7 +57,7 @@ esp_err_t O2Sensor::readFlash()
 
   vTaskDelay(pdMS_TO_TICKS(50));  // Wait 50 ms
 
-  err = i2c_master_read_from_device(_port, _addr, &value, 1, I2C_NO_TIMEOUT);
+  err = i2c_master_read_from_device(_port, _addr, &value, 1, ticks_to_wait);
   if(err != ESP_OK) {
     ESP_LOGE(TAG_O2SENSOR, "O2Sensor::readFlash failed: %s", esp_err_to_name(err));
     return err;

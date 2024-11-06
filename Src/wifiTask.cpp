@@ -20,6 +20,8 @@
 #include "sensorTask.h"
 
 
+static const char *tag_wifi = "WiFi";
+
 // UDP library
 static AsyncUDP udp;
 
@@ -47,10 +49,22 @@ wifiSetting_t wifiSettingBuf;
 
 static sensorData_t sensor_data_buf;
 
+// Variables to send data in storage
+#define SEND_HEADER_SIZE 4                          // Header size in bytes
+#define SEND_CHUNK_ITEMS    16                      // How many stored items to send in single packet
+#define SEND_TOTAL_CHUNKS (STORE_BUFFER_SIZE/SEND_CHUNK_ITEMS)
+#define SEND_CHUNK_SIZE (SEND_CHUNK_ITEMS*sizeof(storeData_t))    // This size should be under MTU, typically ~1400 bytes usable
+static const storeData_t *sendStorageData = NULL;
+static uint16_t storagePosition = 0;
+static uint8_t sendStorageBuffer[SEND_HEADER_SIZE+SEND_CHUNK_SIZE];
+
 
 // Build the UDP data packet to be sent
 void inline createPacket()
 {
+  packet.status = WIFI_PACKET_REALTIME; // Real time data
+  packet.dummy1 = 0;  // reserved
+  packet.errors = sensor_data_buf.errors;
   packet.flow = sensor_data_buf.flow_value;
   packet.o2 = sensor_data_buf.o2;
   packet.ve = sensor_data_buf.veMean;
@@ -62,7 +76,6 @@ void inline createPacket()
   packet.exhale_temperature = sensor_data_buf.exhale_temperature;
   packet.hr = sensor_data_buf.hr;
   packet.rr = sensor_data_buf.rr;
-  packet.errors = sensor_data_buf.errors;
 }
 
 void wifiTask(void *params)
@@ -81,6 +94,10 @@ void wifiTask(void *params)
   strncpy(wifiPassword, global_settings.wifiPassword, 31);
 
   strncat(wifiStationName, SERIALNUMBER, 31-strlen(wifiStationName)); // Copy the "unique" ID to the station name
+
+  ESP_LOGI(tag_wifi, "St: %s", wifiStationName);
+  ESP_LOGI(tag_wifi, "Pw: %s", wifiPassword);
+  ESP_LOGI(tag_wifi, "UDP packet size: %d", sizeof(wifiUdpPacket_t));
 
   for(;;)
   {
@@ -121,6 +138,7 @@ void wifiTask(void *params)
     // Request start of wifi, create access point
     if((xEventGroupGetBits(wifiEvent) & WIFI_REQUEST_START) && !(xEventGroupGetBits(wifiEvent) & WIFI_STATUS_STARTED)) {
       xEventGroupClearBits(wifiEvent, WIFI_REQUEST_START);
+      ESP_LOGI(tag_wifi, "Starting wifi...");
 
       // Hostname needs to be set before turning wifi on
       WiFi.setHostname(wifiStationName);
@@ -132,6 +150,8 @@ void wifiTask(void *params)
 
       WiFi.softAPConfig(wifiIP, wifiIP, wifiNetmask); // IP, gateway (not used), netmask
 
+      ESP_LOGI(tag_wifi, "Wifi [%s] started", wifiStationName);
+
       // TODO: Check whether wifi was properly started?
       xEventGroupClearBits(wifiEvent, WIFI_STATUS_STOPPED);
       xEventGroupClearBits(wifiEvent, WIFI_HAS_CLIENTS);
@@ -141,6 +161,7 @@ void wifiTask(void *params)
     else if((xEventGroupGetBits(wifiEvent) & WIFI_REQUEST_STOP) &&  !(xEventGroupGetBits(wifiEvent) & WIFI_STATUS_STOPPED)) {
       // Stop the wifi
       xEventGroupClearBits(wifiEvent, WIFI_REQUEST_STOP);
+      ESP_LOGI(tag_wifi, "Stopping wifi...");
 
       // De-auth all clients
       esp_wifi_deauth_sta(0);
@@ -160,6 +181,34 @@ void wifiTask(void *params)
         break;
       case WIFI_SETTING_PASS:
         strncpy(wifiPassword, (char *)wifiSettingBuf.value, 31);
+        break;
+      case WIFI_SEND_STORED:
+        // Send stored values from buffer
+        if(xEventGroupGetBits(wifiEvent) & WIFI_STATUS_STARTED) {
+          ESP_LOGI(tag_wifi, "Sending storage buffer...");
+
+          storagePosition = getStorageBufferPosition();
+          sendStorageData = getStorageBuffer();
+
+          for(uint8_t chunk=0;chunk<SEND_TOTAL_CHUNKS;chunk++) 
+          {
+            sendStorageBuffer[0] = WIFI_PACKET_STORED;
+            sendStorageBuffer[1] = SEND_TOTAL_CHUNKS - chunk;
+            *((uint16_t *)&sendStorageBuffer[2]) = SEND_CHUNK_SIZE;
+            memcpy(&sendStorageBuffer[4], &sendStorageData[chunk*SEND_CHUNK_ITEMS], SEND_CHUNK_SIZE);
+            udp.broadcastTo((uint8_t *)sendStorageBuffer, SEND_HEADER_SIZE+SEND_CHUNK_SIZE, wifiBcastPort);
+            // TODO: Do we need yield/wait here?
+            vTaskDelay(pdMS_TO_TICKS(10));  // Should be enough time to send... and shouldn't take too long
+          }
+          // Send last package which contains necessary configuration information
+          sendStorageBuffer[0] = WIFI_PACKET_STORED;
+          sendStorageBuffer[1] = 0;   // 0 = last packet = configuration packet
+          *((uint16_t *)&sendStorageBuffer[2]) = 6;   // Send 3x uint16_t = 6 bytes
+          *((uint16_t *)&sendStorageBuffer[4]) = storagePosition;
+          *((uint16_t *)&sendStorageBuffer[6]) = global_settings.storeDataRate;
+          *((uint16_t *)&sendStorageBuffer[8]) = global_settings.integrationTime;
+          udp.broadcastTo((uint8_t *)sendStorageBuffer, SEND_HEADER_SIZE+6, wifiBcastPort);
+        }
         break;
       default: break;
       };
@@ -189,6 +238,8 @@ bool wifiSetConfig(uint8_t type, void *param, TickType_t timeout)
   wifiSetting_t data = {type, param};
   if(wifiQueue)
     return xQueueSendToBack(wifiQueue, (void *)&data, timeout) == pdTRUE;
+
+  return false;
 }
 
 uint16_t wifiGetStatus(void)
