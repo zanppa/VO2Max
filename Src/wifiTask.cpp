@@ -10,6 +10,7 @@
 #include <WiFi.h>
 #include <AsyncUDP.h>
 #include "esp_wifi.h"
+#include "esp_mac.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -49,9 +50,12 @@ wifiSetting_t wifiSettingBuf;
 
 static sensorData_t sensor_data_buf;
 
+static uint8_t mac_base[6] = {0}; // Unique device MAC address, max 6 bytes
+static char SERIALNUMBER[5] = {0};
+
 // Variables to send data in storage
 #define SEND_HEADER_SIZE 4                          // Header size in bytes
-#define SEND_CHUNK_ITEMS    16                      // How many stored items to send in single packet
+#define SEND_CHUNK_ITEMS    16                      // How many stored items to send in single packet, must be integer ratio of STORE_BUFFER_SIZE
 #define SEND_TOTAL_CHUNKS (STORE_BUFFER_SIZE/SEND_CHUNK_ITEMS)
 #define SEND_CHUNK_SIZE (SEND_CHUNK_ITEMS*sizeof(storeData_t))    // This size should be under MTU, typically ~1400 bytes usable
 static const storeData_t *sendStorageData = NULL;
@@ -93,6 +97,10 @@ void wifiTask(void *params)
   strncpy(wifiStationName, global_settings.wifiStationName, 31);
   strncpy(wifiPassword, global_settings.wifiPassword, 31);
 
+  if(esp_efuse_mac_get_default(mac_base) == ESP_OK)
+  {
+    snprintf(SERIALNUMBER, 5, "%02X%02X", mac_base[4], mac_base[5]);
+  }
   strncat(wifiStationName, SERIALNUMBER, 31-strlen(wifiStationName)); // Copy the "unique" ID to the station name
 
   ESP_LOGI(tag_wifi, "St: %s", wifiStationName);
@@ -178,6 +186,7 @@ void wifiTask(void *params)
       switch(wifiSettingBuf.type) {
       case WIFI_SETTING_NAME:
         strncpy(wifiStationName, (char *)wifiSettingBuf.value, 31);
+        strncat(wifiStationName, SERIALNUMBER, 31-strlen(wifiStationName)); // Copy the "unique" ID to the station name
         break;
       case WIFI_SETTING_PASS:
         strncpy(wifiPassword, (char *)wifiSettingBuf.value, 31);

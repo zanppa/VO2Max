@@ -22,11 +22,13 @@ extern TFT_eSPI tft;
 
 extern volatile uint32_t seconds_from_start;
 
+
 // Forward declarations
 void func_closemenu();
 void func_sendstored();
 void func_submenu(void *p1, void *p2);
 void func_floatnum(void *p1, void *p2);
+void func_stringvalue(void *p1, void *p2);
 void func_hrconnect();
 void func_calibrateO2();
 void func_calibrateFlow();
@@ -157,7 +159,9 @@ static int storeRateValues[5] = {0, 1, 2, 4, 9};
 
 static floatNumParams_t weightParams = {"Weight", 20.0, 200.0, 0.5};
 
-static const int defaultmenu_count = 14;
+static uint8_t wifi_string_length = 31;
+
+static const int defaultmenu_count = 16;
 static MenuItem *defaultmenu_items[defaultmenu_count] = {
                             new FunctionMenuItem("Done", &func_closemenu),
                             new FunctionMenuItem("Send stored", &func_sendstored),
@@ -168,6 +172,8 @@ static MenuItem *defaultmenu_items[defaultmenu_count] = {
                             new FunctionMenuItem("Calibrate flow", &func_calibrateFlow),
                             new CheckMenuItem("Wifi", &global_settings.wifi_enable),
                             new SelectMenuItem("Wifi send", &global_settings.wifiDataRate, wifiDataRateNames, wifiDataRates, 3),
+                            new Function2MenuItem("Wifi name", &func_stringvalue, global_settings.wifiStationName, (void *)&wifi_string_length),
+                            new Function2MenuItem("Wifi password", &func_stringvalue, global_settings.wifiPassword, (void *)&wifi_string_length),
                             new CheckMenuItem("CO2 sensor", &global_settings.co2sensor_enable),
                             new CheckMenuItem("G Cheetah", &global_settings.cheetah_enable),
                             new CheckMenuItem("HR sensor", &global_settings.hrsensor_enable),
@@ -225,6 +231,9 @@ void func_floatnum(void *p1, void *p2)
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
 
+  tft.setCursor(5, 110, 2);
+  tft.print("Wait 5 seconds to confirm");
+
   printButtonLabels("+", "-");
 
   if(pp2 && pp2->label)
@@ -268,6 +277,103 @@ void func_floatnum(void *p1, void *p2)
     if(buttons) vTaskDelay(pdMS_TO_TICKS(200)); // Delay if buttons are kept pressed
     //waitButtonRelease(pdMS_TO_TICKS(500));
   }
+}
+
+
+// Find next character, given current one is c
+// in a restricted set of characters
+static char next_char(char c)
+{
+  if(c == 57) return 95;   // from 9 to _
+  else if(c == 95) return 32;   //From _ to space (null, terminator)
+  else if(c == 32) return 97; // space to a
+  else if(c == 122) return 65; // z to A
+  else if(c == 90) return 48; // Z to 0
+  else return c+1;
+}
+
+// Enter a string. Stored as char * in p1, maximum length is uint8_t *p2
+void func_stringvalue(void *p1, void *p2)
+{
+  uint8_t buttons = 0;
+  bool valueChanged = true;
+  char *value = (char *)p1;
+  uint8_t maxlen = *((uint8_t *)p2);
+  uint8_t curpos = 0;
+  TickType_t exitTimer;
+
+  if(!p1) return;
+
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+
+  tft.setCursor(5, 5, 4);
+  tft.print("Enter string");
+
+  printButtonLabels(">", "v");
+
+  tft.setCursor(5, 110, 2);
+  tft.print("Wait 5 seconds to confirm");
+
+  // Wait first that buttons are released
+  waitButtonRelease(portMAX_DELAY);
+
+  exitTimer = xTaskGetTickCount();
+  while ((xTaskGetTickCount() - exitTimer) < pdMS_TO_TICKS(5000)) {
+    if(valueChanged) {
+      tft.fillRect(0, 48, 240, 30, TFT_BLACK);  // Clear old string
+
+      // Draw the string
+      tft.setCursor(5, 48, 4);
+
+      // Show maximum of N characters
+      uint8_t idx = (curpos>=STRING_SHOW_CHARS) ? curpos-(STRING_SHOW_CHARS-1) : 0;
+      idx = (idx+STRING_SHOW_CHARS) >= maxlen ? (maxlen>STRING_SHOW_CHARS ? maxlen - STRING_SHOW_CHARS : 0) : idx;
+      
+      for(uint8_t i=0;i<STRING_SHOW_CHARS; i++) {
+        if(idx+i >= maxlen) break;
+
+        if(i+idx == curpos) {
+          tft.setTextColor(TFT_BLACK, TFT_LIGHTGREY);
+        } else {
+          tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+        }
+        if(value[idx+i])
+          tft.print(value[idx+i]);
+        else
+          tft.print(" "); // Null character --> empty space
+      }
+
+      if(idx+STRING_SHOW_CHARS < maxlen) {
+        tft.setCursor(225, 48, 4);
+        tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+        tft.print(">");
+      }
+      
+      valueChanged = false;
+      exitTimer = xTaskGetTickCount();
+    }
+
+    waitButtonPress(&buttons, pdMS_TO_TICKS(500));
+    buttons = buttonPressStatus();    // This allows us to handle also button holding
+
+    if (buttons & 0x01) { // Button 1 (low) pressed, change current character
+      //ESP_LOGI("string", "Current %c next %c", value[curpos], next_char(value[curpos]));
+      value[curpos] = next_char(value[curpos]);
+      valueChanged = true;
+    }
+    else if (buttons & 0x02) { // Button 2, go to next character in string
+      if(curpos < maxlen) curpos++;
+      else break; // End of string, consider as quit
+      valueChanged = true;
+    }
+
+    if(buttons) vTaskDelay(pdMS_TO_TICKS(200)); // Delay if buttons are kept pressed
+  }
+
+  // Finally convert any "space" (decimal 32) in the string to null
+  for(uint8_t idx=0; idx<maxlen; idx++)
+    if(value[idx] == 32) value[idx] = 0;
 }
 
 
@@ -368,7 +474,7 @@ void func_calibrateFlow()
     tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
     tft.setCursor(0, 40, 4);
     tft.println("OK!");
-    tft.println("Calibration factor now");
+    tft.println("New factor is");
     tft.printf("%04.2f", factor);
 
     printButtonLabels("", "OK");
@@ -400,6 +506,7 @@ void func_hrconnect(void)
 {
   bool skip = false;
   uint8_t but = 0;
+  uint8_t spinner = 0;
 
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
@@ -413,11 +520,22 @@ void func_hrconnect(void)
   //Serial.println(BLEIsScanning());
 
   do {
-    if(waitButtonPress(&but, pdMS_TO_TICKS(1000)) && but == BUTTON_UPPER)
+    if(waitButtonPress(&but, pdMS_TO_TICKS(200)) && but == BUTTON_UPPER)
     {
       skip = true;
       break;
     }
+
+    // Let's see if a simple spinner works to show that something is going on...
+    tft.setCursor(20, 60, 4);
+    tft.print("[");
+    for(uint8_t i=0;i<8;i++) {
+      if((spinner < 8 && i>spinner) || (spinner >=8 && i < (spinner-8))) tft.print("-");
+      else tft.print("X");
+    }
+    tft.print("]");
+    spinner = (spinner + 1) & 0x0F;
+
   } while(BLEHRIsScanning());
 
   tft.fillScreen(TFT_BLACK);

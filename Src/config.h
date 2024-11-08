@@ -6,9 +6,6 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-// Identifier for wifi etc.
-#define SERIALNUMBER    "0A1B2C"
-
 
 #define SETTINGS_MAGIC     0xAB
 #define SETTINGS_VERSION   3

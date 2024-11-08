@@ -426,6 +426,7 @@ bool calculate_volumes()
       // so averaging periods is zero --> values should be zeroed
       vo2 = 0.0;
       vco2 = 0.0;
+      lastBreathInterval = 0;
     }
 
     // Check when to store values to buffer and then store them
@@ -436,7 +437,9 @@ bool calculate_volumes()
       bufferData[bufferPosition].vco2 = vco2;
       bufferData[bufferPosition].resp_rate = lastBreathInterval ? (60000.0 / (float)lastBreathInterval) : 0;
       bufferData[bufferPosition].hr = sensorData.hr;  // If available
-      bufferData[bufferPosition].hr = sensorData.rr;  // If available...
+      bufferData[bufferPosition].temperature = sensorData.ambient_temperature;
+      bufferData[bufferPosition].pressure = sensorData.ambient_pressure;
+      bufferData[bufferPosition].o2 = sensorData.o2;
 
       bufferPosition++;
       if(bufferPosition >= STORE_BUFFER_SIZE) bufferPosition = 0;

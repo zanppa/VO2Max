@@ -6,6 +6,8 @@
 #ifndef __MENU_H__
 #define __MENU_H__
 
+#define STRING_SHOW_CHARS   12
+
 typedef struct _floatNumParams_t {
   const char *label;
   float min;
