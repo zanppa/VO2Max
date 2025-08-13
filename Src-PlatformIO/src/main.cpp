@@ -1,7 +1,7 @@
 /*
  * VO2 sensor for measuring VO2 and VO2max during exercise
  *
- * Copyright (C) 2024 Lauri Peltonen
+ * Copyright (C) 2024, 2025 Lauri Peltonen
  * GPL V3
  *
  * Based heavily on IHewitt's VO2max project
@@ -15,25 +15,27 @@
  *   BMP388 ambient pressure sensor (DFRobot Gravity BMP388)
  *
  *
- * Arduino IDE settings:
+ * PlatformIO board settings:
  *
- * Board: ESP32 Dev Module
+ * Board: Lilygo-t-display
  * Upload Speed: 921600
  * CPU Frequency: 240Mhz (WiFi/BT)
  * Flash Frequency: 80Mhz
  * Flash Mode: QIO
- * Flash Size: 4MB (32Mb)
- * Partition Scheme: Default 4MB with spiffs (1.2MB APP/1.5 SPIFFS)
+ * Partition Scheme: Default.csv [4MB with spiffs (1.2MB APP/1.5 SPIFFS)]
  * Core Debug Level: None --> For debugging can set also different values, for release select None
- * PSRAM: Disabled
+ * PSRAM: No
  *
  * Remember to modify the TFT_eSPI configuration file to select T-Display!
  * Select this one line in "user_setup_select.h"
  * #include <User_Setups/Setup25_TTGO_T_Display.h>    // Setup file for ESP32 and TTGO T-Display ST7789V SPI bus TFT
- *
+ * and don't forget to comment out the custom user setup
+ * //#include <User_Setup.h>           // Default setup is root library folder
+ * 
+ * 
  * With NimBLE-Arduino the code just barely fits into default partition.
  * In case of problems (e.g. if program does not fit with debug level = info), one can use
- *    Huge APP (3 MB No OTA / 1 MB SPIFFS)
+ *    huge_app.csv / Huge APP (3 MB No OTA / 1 MB SPIFFS)
  * partition scheme to make the program fit.
  *
  */
