@@ -59,7 +59,7 @@
 
 #include <TFT_eSPI.h>
 
-#include "EEPROM.h"
+#include "Preferences.h"
 
 #include "config.h"
 #include "sensorTask.h"
@@ -74,9 +74,8 @@
 #define VO2_PIN_ADC_EN  14
 #define VO2_PIN_BAT_VOLT  34
 
-#define EEPROM_STORE_SIZE   sizeof(settings_t)
-#define EEPROM_STORE_START  2   // first is magic and 2nd is version, so data starts from offset 2
-
+#define PREFS_STORE_SIZE   sizeof(settings_t)
+Preferences preferences;    // To store configuration values to NVS (non-volatile storage) (instead of flash)
 
 // Default settings
 settings_t global_settings = {
@@ -134,6 +133,8 @@ void debugPrintConfig(void)
   Serial.println(global_settings.co2sensor_enable);
   Serial.print(" Wifi: ");
   Serial.println(global_settings.wifi_enable);
+  Serial.print(" Wifi AP name: ");
+  Serial.println(global_settings.wifiStationName);
   Serial.print(" Golden Cheetah: ");
   Serial.println(global_settings.cheetah_enable);
   Serial.print(" HR Address: ");
@@ -161,57 +162,87 @@ float readBatteryVoltage()
   return measurement;
 }
 
-// Load settings structure from EEPROM
+// Load settings structure from NVS
 bool loadSettings() {
   uint8_t b;
-  // Check magic and version to make sure EEPROM contents are compatible
-  if((b = EEPROM.read(0)) != SETTINGS_MAGIC) {
-    ESP_LOGE(TAG_VO2, "EEPROM: Magic does not match (%x != %x)", b, SETTINGS_MAGIC);
+  settings_t new_settings;
+
+  if(!preferences.begin("vo2max", true)) {  // Open NVS namespace for reading
+    ESP_LOGI(TAG_VO2, "Preferences: No previous preferences stored.");
+    preferences.end();
     return false;
   }
-  if((b = EEPROM.read(1)) != SETTINGS_VERSION) {
-    ESP_LOGE(TAG_VO2, "EEPROM: Version does not match (%d != %d)", b, SETTINGS_VERSION);
+
+  // Check magic and version to make sure NVS contents are compatible
+  if(!preferences.isKey("magic") || (b = preferences.getUChar("magic", 0)) != SETTINGS_MAGIC) {
+    ESP_LOGE(TAG_VO2, "Preferences: Magic does not match (%x != %x)", b, SETTINGS_MAGIC);
+    preferences.end();
+    return false;
+  }
+  if(!preferences.isKey("version") || (b = preferences.getUChar("version", 0)) != SETTINGS_VERSION) {
+    ESP_LOGE(TAG_VO2, "Preferences: Version does not match (%d != %d)", b, SETTINGS_VERSION);
+    preferences.end();
     return false;
   }
 
-  // Read rest of the settings
-  for(int i=0; i<EEPROM_STORE_SIZE; i++)
-      ((byte *)&global_settings)[i] = EEPROM.read(i + EEPROM_STORE_START);
+  if(!preferences.isKey("prefs")) {
+    ESP_LOGE(TAG_VO2, "Preferences: prefs key not found");
+    preferences.end();
+    return false;
+  }
 
-  ESP_LOGI(TAG_VO2, "EEPROM: Settings restored");
+  if((b = preferences.getBytesLength("prefs")) != PREFS_STORE_SIZE) {
+    ESP_LOGE(TAG_VO2, "Preferences: prefs data length not correct (%d != %d)", b, PREFS_STORE_SIZE);
+    preferences.end();
+    return false;
+  }
 
+  // Read the settings to temporary array
+  if(preferences.getBytes("prefs", (void *)&new_settings, PREFS_STORE_SIZE) != PREFS_STORE_SIZE) {
+    ESP_LOGE(TAG_VO2, "Preferences: Failed to load preference values!");
+    preferences.end();
+    return false;
+  }
+
+  // Data should be succesfully restored, copy them to the correct array
+  memcpy(&global_settings, &new_settings, PREFS_STORE_SIZE);
+
+  ESP_LOGI(TAG_VO2, "Preferences: Settings restored");
+
+  preferences.end();
   return true;
 }
 
-// Store current settings struct to EEPROM
+// Store current settings struct to NVS
 void storeSettings() {
-  bool changed = false;
+  bool success = false;
 
-  // Check magic and version
-  if(EEPROM.read(0) != SETTINGS_MAGIC) {
-    EEPROM.write(0, SETTINGS_MAGIC);
-    changed = true;
-  }
+  ESP_LOGI(TAG_VO2, "Preferences: Storing settings");
 
-  if(EEPROM.read(1) != SETTINGS_VERSION) {
-    EEPROM.write(1, SETTINGS_VERSION);
-    changed = true;
+  if(!preferences.begin("vo2max", false)) { // Open NVS namespace for read and write
+    ESP_LOGE(TAG_VO2, "Preferences: Namespace creation failed");
+    preferences.end();
+    return;
   }
-
-  for(int i=0; i<EEPROM_STORE_SIZE; i++) {
-    uint8_t b = EEPROM.read(i + EEPROM_STORE_START);
-    uint8_t sb = ((byte *)&global_settings)[i];
-    if (b != sb) {
-      EEPROM.write(i + EEPROM_STORE_START, sb);
-      changed = true;
-    }
+  if(preferences.putBytes("prefs", (void *)&global_settings, PREFS_STORE_SIZE) != PREFS_STORE_SIZE) {
+    ESP_LOGE(TAG_VO2, "Preferences: Could not write preferences");
+    preferences.end();
+    return;
   }
-  if(changed) {
-    EEPROM.commit();
-    ESP_LOGI(TAG_VO2, "EEPROM: Commit");
+  if(!preferences.putUChar("magic", SETTINGS_MAGIC)) {
+    ESP_LOGE(TAG_VO2, "Preferences: Could not write magic");
+    preferences.end();
+    return;
   }
-
-  ESP_LOGI(TAG_VO2, "EEPROM: Settings stored");
+  if(!preferences.putUChar("version", SETTINGS_VERSION)) {
+    ESP_LOGE(TAG_VO2, "Preferences: Could not write version");
+    preferences.end();
+    return;
+  }
+  
+  ESP_LOGI(TAG_VO2, "Preferences: Settings stored");
+  ESP_LOGD(TAG_VO2, "Preferences: %d entries free", preferences.freeEntries());
+  preferences.end();
 }
 
 
@@ -223,16 +254,11 @@ void setup() {
   pinMode(BUTTON_1_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
 
-  configASSERT(EEPROM_STORE_SIZE+2 <= 512); // Sanity check
-
-  // Initialize EEPROM, also add 2 bytes for version and magic in addition to settings data
-  EEPROM.begin(EEPROM_STORE_SIZE + 2);
-
   // Debug print default config
-  debugPrintConfig();
+  // debugPrintConfig();
 
   // If upper button is held down during boot, reset to default settings,
-  // i.e. do not read from EEPROM
+  // i.e. do not read from NVS
   if(digitalRead(BUTTON_2_PIN)) // Returns true if button is not pressed
     loadSettings();
   else 
@@ -275,7 +301,7 @@ void setup() {
   timer_clock = xTimerCreate("clock", pdMS_TO_TICKS(1000), pdTRUE, nullptr, clockTimer);
   xTimerStart(timer_clock, 0);
 
-  // Update initial configuration, default or from eeprom
+  // Update initial configuration, default or from NVS
   sensorSetConfiguration();
 
   // Queue automatic start of other features that may also be disabled
