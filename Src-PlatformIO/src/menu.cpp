@@ -11,6 +11,8 @@
 #include "config.h"
 #include "menu.h"
 
+#include "files.h"
+
 #include "buttonsTask.h"
 #include "sensorTask.h"
 #include "wifiTask.h"
@@ -33,6 +35,8 @@ void func_hrconnect();
 void func_calibrateO2();
 void func_calibrateFlow();
 void func_resetValues();
+void func_writeToFile();
+void func_sendfiles();
 
 void printButtonLabels(const char *upper, const char *lower)
 {
@@ -161,10 +165,12 @@ static floatNumParams_t weightParams = {"Weight", 20.0, 200.0, 0.5};
 
 static uint8_t wifi_string_length = 31;
 
-static const int defaultmenu_count = 16;
+static const int defaultmenu_count = 18;
 static MenuItem *defaultmenu_items[defaultmenu_count] = {
                             new FunctionMenuItem("Done", &func_closemenu),
-                            new FunctionMenuItem("Send stored", &func_sendstored),
+                            new FunctionMenuItem("Save to file", &func_writeToFile),
+                            new FunctionMenuItem("Send memory", &func_sendstored),
+                            new FunctionMenuItem("Send file", &func_sendfiles),
                             new Function2MenuItem("Set weight", &func_floatnum, &global_settings.userWeight, (void*)&weightParams),
                             new SelectMenuItem("Interval", &global_settings.integrationTime, intTimeNames, intTimeValues, 5),
                             new SelectMenuItem("Store rate", &global_settings.storeDataRate, storeRateNames, storeRateValues, 5),
@@ -201,6 +207,38 @@ void func_sendstored()
 {
   // We abuse the wifi config a bit to send request to send the stored buffer...
   wifiSetConfig(WIFI_SEND_STORED, NULL, pdMS_TO_TICKS(100));
+}
+
+// Save memory buffer contents to SPIFFS file(s)
+void func_writeToFile()
+{
+  unsigned int storagePosition = getStorageBufferPosition();
+  const storeData_t *sendStorageData = getStorageBuffer();
+  bool ret = false;
+
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+
+  tft.setCursor(5, 5, 4);
+  tft.print("Writing file... ");
+
+  if(write_log_buffer_to_file((const char *)sendStorageData, STORE_BUFFER_SIZE, sizeof(storeData_t), storagePosition)) {
+    tft.print("OK");
+    vTaskDelay(pdMS_TO_TICKS(500));
+  } else {
+    tft.println("FAIL");
+    tft.println("Press a button");
+    printButtonLabels(" ", ">");
+    waitButtonEvent(0, true, pdMS_TO_TICKS(5000));  // Wait until any button pressed or 5 s
+  }
+
+}
+
+// Request WiFi task to send data stored in Flash file(s)
+void func_sendfiles()
+{
+  // We abuse the wifi config a bit to send request to send the files...
+  wifiSetConfig(WIFI_SEND_FILE, NULL, pdMS_TO_TICKS(100));
 }
 
 // Change menu to another menu pointed by parameter p1

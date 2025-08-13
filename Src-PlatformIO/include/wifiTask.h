@@ -22,7 +22,8 @@ typedef struct _wifiSetting_t {
 } wifiSetting_t;
 #define WIFI_SETTING_NAME     0x01  // Set wifi station name
 #define WIFI_SETTING_PASS     0x02  // Set wifi password
-#define WIFI_SEND_STORED      0x10  // Send stored data over UDP, not really a setting...
+#define WIFI_SEND_STORED      0x10  // Send data stored in memory over UDP, not really a setting...
+#define WIFI_SEND_FILE       0x20  // Send data stored to flash over UDP, --"--
 
 
 #define WIFI_PACKET_REALTIME    0x01

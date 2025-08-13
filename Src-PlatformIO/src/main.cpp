@@ -68,6 +68,7 @@
 #include "status.h"
 #include "menu.h"
 #include "BLE_HRBelt.h"
+#include "files.h"
 
 
 #define VO2_PIN_DEBUG   27
@@ -289,6 +290,9 @@ void setup() {
   buttonInit();
   attachInterrupt(BUTTON_1_PIN, buttonInterrupt, CHANGE);
   attachInterrupt(BUTTON_2_PIN, buttonInterrupt, CHANGE);
+
+  // Initialize filesystem for storage
+  init_filesystem();
 
   // Create other tasks
   xTaskCreate(sensorTask, "sensor", 4096, nullptr, PRIORITY_SENSORTASK, &task_sensorTask);

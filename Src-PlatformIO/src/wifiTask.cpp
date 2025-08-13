@@ -20,6 +20,8 @@
 #include "wifiTask.h"
 #include "sensorTask.h"
 
+#include "files.h"
+
 
 static const char *tag_wifi = "WiFi";
 
@@ -61,6 +63,7 @@ static char SERIALNUMBER[5] = {0};
 static const storeData_t *sendStorageData = NULL;
 static uint16_t storagePosition = 0;
 static uint8_t sendStorageBuffer[SEND_HEADER_SIZE+SEND_CHUNK_SIZE];
+static uint8_t dataFileHeader[2 + sizeof(size_t) + 2*sizeof(int)];
 
 
 // Build the UDP data packet to be sent
@@ -214,9 +217,62 @@ void wifiTask(void *params)
           sendStorageBuffer[1] = 0;   // 0 = last packet = configuration packet
           *((uint16_t *)&sendStorageBuffer[2]) = 6;   // Send 3x uint16_t = 6 bytes
           *((uint16_t *)&sendStorageBuffer[4]) = storagePosition;
-          *((uint16_t *)&sendStorageBuffer[6]) = global_settings.storeDataRate;
-          *((uint16_t *)&sendStorageBuffer[8]) = global_settings.integrationTime;
+          *((uint16_t *)&sendStorageBuffer[6]) = (uint16_t)global_settings.storeDataRate;
+          *((uint16_t *)&sendStorageBuffer[8]) = (uint16_t)global_settings.integrationTime;
           udp.broadcastTo((uint8_t *)sendStorageBuffer, SEND_HEADER_SIZE+6, wifiBcastPort);
+          ESP_LOGI(tag_wifi, "Buffer sent");
+        }
+        break;
+      case WIFI_SEND_FILE:
+        // Send values from flash storage files over UDP
+        if(xEventGroupGetBits(wifiEvent) & WIFI_STATUS_STARTED) {
+          ESP_LOGI(tag_wifi, "Sending stored data file...");
+
+          if(!open_data_file()) {
+            ESP_LOGW(tag_wifi, "Could not open the stored data file");
+            break;
+          }
+
+          // Read header of file and check
+          if(!read_data_file((char *)&dataFileHeader[0], sizeof(dataFileHeader))) {
+            ESP_LOGW(tag_wifi, "No header in data file");
+            close_data_file();
+            break;
+          }
+          if(dataFileHeader[0] != DATA_FILE_MAGIC || dataFileHeader[1] != DATA_FILE_VERSION) {
+            ESP_LOGW(tag_wifi, "Data file type or version incorrect (%d != %d, %d != %d)", dataFileHeader[0], DATA_FILE_MAGIC, dataFileHeader[1], DATA_FILE_VERSION);
+            close_data_file();
+            break;
+          }
+
+          for(uint8_t chunk=0;chunk<SEND_TOTAL_CHUNKS;chunk++) 
+          {
+            //ESP_LOGD(tag_wifi, "Reading chunk %d / %d...", chunk, SEND_TOTAL_CHUNKS-1);
+
+            sendStorageBuffer[0] = WIFI_PACKET_STORED;
+            sendStorageBuffer[1] = SEND_TOTAL_CHUNKS - chunk;
+            *((uint16_t *)&sendStorageBuffer[2]) = SEND_CHUNK_SIZE;
+
+            if(!read_data_file((char *)&sendStorageBuffer[4], SEND_CHUNK_SIZE)) {
+              ESP_LOGW(tag_wifi, "Data file truncated!");
+              break;  // Out of for loop, send the end packet anyways
+            }
+            
+            udp.broadcastTo((uint8_t *)sendStorageBuffer, SEND_HEADER_SIZE+SEND_CHUNK_SIZE, wifiBcastPort);
+            // TODO: Do we need yield/wait here?
+            vTaskDelay(pdMS_TO_TICKS(10));  // Should be enough time to send... and shouldn't take too long
+          }
+          // Send last package which contains necessary configuration information
+          sendStorageBuffer[0] = WIFI_PACKET_STORED;
+          sendStorageBuffer[1] = 0;   // 0 = last packet = configuration packet
+          *((uint16_t *)&sendStorageBuffer[2]) = 6;   // Send 3x uint16_t = 6 bytes
+          *((uint16_t *)&sendStorageBuffer[4]) = STORE_BUFFER_SIZE-1;   // Data file is sent in already correct order
+          *((uint16_t *)&sendStorageBuffer[6]) = *((uint16_t *)&dataFileHeader[2+sizeof(size_t)]);
+          *((uint16_t *)&sendStorageBuffer[8]) = *((uint16_t *)&dataFileHeader[2+sizeof(size_t)+sizeof(int)]);
+          udp.broadcastTo((uint8_t *)sendStorageBuffer, SEND_HEADER_SIZE+6, wifiBcastPort);
+          
+          close_data_file();
+          ESP_LOGI(tag_wifi, "Data file sent");
         }
         break;
       default: break;
