@@ -487,6 +487,11 @@ void func_calibrateFlow()
 {
   uint8_t button;
   float factor = 1.0;
+  float old_factor = global_settings.flowCorrectionFactor;
+
+  // Need to reset flow correction before calibration
+  global_settings.flowCorrectionFactor = 1.0;
+  sensorSetConfiguration();   // Trigger update of flow correction factor
 
   // First query the flow volume
   func_floatnum(&calFlowVolume, (void *)&calFlowParams);
@@ -512,7 +517,10 @@ void func_calibrateFlow()
     tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
     tft.setCursor(0, 40, 4);
     tft.println("OK!");
-    tft.println("New factor is");
+    tft.print("Measured: ");
+    tft.printf("%04.2f", sensor_data_buf.ve);
+    tft.println(" l");
+    tft.println("Factor: ");
     tft.printf("%04.2f", factor);
 
     printButtonLabels("", "OK");
@@ -524,7 +532,7 @@ void func_calibrateFlow()
     tft.println("Flow. Please try");
     tft.println("again.");
 
-    factor = global_settings.flowCorrectionFactor;  // Make sure we don't accidentally update...
+    factor = old_factor;  // Make sure we don't accidentally update...
   }
 
   //tft.setCursor(140, 5, 4);
@@ -535,7 +543,9 @@ void func_calibrateFlow()
   waitButtonRelease(portMAX_DELAY);
 
   if(button == BUTTON_LOWER)
-    global_settings.flowCorrectionFactor = factor;  // TODO: Maybe works directly from here?
+    global_settings.flowCorrectionFactor = factor;  // Will actually reconfigure after menu is closed
+  else
+    global_settings.flowCorrectionFactor = old_factor;  // Will actually reconfigure after menu is closed
 }
 
 
