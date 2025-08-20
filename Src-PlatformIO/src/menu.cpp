@@ -520,7 +520,7 @@ void func_calibrateFlow()
     tft.print("Measured: ");
     tft.printf("%04.2f", sensor_data_buf.ve);
     tft.println(" l");
-    tft.println("Factor: ");
+    tft.print("Factor: ");
     tft.printf("%04.2f", factor);
 
     printButtonLabels("", "OK");
@@ -529,14 +529,12 @@ void func_calibrateFlow()
     tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
     tft.setCursor(0, 40, 4);
     tft.println("Error detecting");
-    tft.println("Flow. Please try");
+    tft.println("flow. Please try");
     tft.println("again.");
 
     factor = old_factor;  // Make sure we don't accidentally update...
   }
 
-  //tft.setCursor(140, 5, 4);
-  //tft.print("Cancel");
   printButtonLabels("Cancel", "");
 
   waitButtonPress(&button, portMAX_DELAY);
