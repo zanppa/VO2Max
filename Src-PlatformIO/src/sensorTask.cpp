@@ -390,6 +390,9 @@ bool calculate_volumes()
 
     newVolumeData = true;
     newBreathData = false;
+
+    ESP_LOGD(TAG_SENSOR, "Breath: last VE %f l, O2 %f %%", lastBreathVolume, currentO2);
+    ESP_LOGD(TAG_SENSOR, "Breath: flowCal %f, toSTDP %f", flowCorrectionFactor, VATPStoSTDP);
     
     xEventGroupSetBits(sensorEvent, SENSOR_EVENT_CALC);
   }
@@ -420,6 +423,10 @@ bool calculate_volumes()
 
       if(vo2 > vo2Max) vo2Max = vo2;
       if(vco2 > vco2Max) vco2Max = vco2;
+
+      ESP_LOGD(TAG_SENSOR, "Ave: VEmean %f l/min, O2ave %f %%", veMean, averageO2level*100.0);
+      ESP_LOGD(TAG_SENSOR, "Ave: BreathInterval %d, Tamb %f C, Pamb %f hPa", lastBreathInterval, sensorData.ambient_temperature, sensorData.ambient_pressure);
+      ESP_LOGD(TAG_SENSOR, "Ave: flowCal %f, toSTDP %f", flowCorrectionFactor, VATPStoSTDP);
     }
     else {
       // No breathing during the integration time at all
