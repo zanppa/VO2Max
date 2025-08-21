@@ -48,13 +48,13 @@ typedef struct _sensorExtraData_t {
 } sensorExtraData_t;
 
 typedef struct _sensorData_t {
-  float vo2;      // Latest volume of o2 consumed in one minute [ml/min]
-  float vo2Max;   // Abs. maximum of previous [ml/min]
+  float vo2;      // Latest volume of o2 consumed in one minute [ml/min/kg]
+  float vo2Max;   // Abs. maximum of previous [ml/min/kg]
   float ve;       // Latest exhaust air volume (single breath) [l]
   float veMax;    // Maximum of single breath exhaust volume [l]
-  float veMean;   // One minute average of exhaust air volume (minute ventilation) [l/min]
-  float vco2;     // Latest volume of co2 consumed in one minute [ml/min]??
-  float vco2Max;  // Abs. max of previous [ml/min]??
+  float veMean;   // One minute average of exhaust air volume (minute ventilation) [l/min/kg]
+  float vco2;     // Latest volume of co2 consumed in one minute [ml/min/kg]??
+  float vco2Max;  // Abs. max of previous [ml/min/kg]??
   float rq;       // Respiratory quotient, Vco2/Vo2 (also respiratory exchange ratio, RER)
   float resp_rate;  // Respiratory rate, breaths per minute
   float ambient_pressure; // Ambient air pressure [hPa]
