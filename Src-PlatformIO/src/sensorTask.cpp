@@ -439,9 +439,9 @@ bool calculate_volumes()
     // Check when to store values to buffer and then store them
     storeIntervalTime++;
     if(storeIntervalTime > STORE_RATE) {
-      bufferData[bufferPosition].vo2 = vo2;
+      bufferData[bufferPosition].vo2 = 1000.0 * vo2 / weight;
       bufferData[bufferPosition].ve = veMean;
-      bufferData[bufferPosition].vco2 = vco2;
+      bufferData[bufferPosition].vco2 = 1000.0 * vco2 / weight;
       bufferData[bufferPosition].resp_rate = lastBreathInterval ? (60000.0 / (float)lastBreathInterval) : 0;
       bufferData[bufferPosition].hr = sensorData.hr;  // If available
       bufferData[bufferPosition].temperature = sensorData.ambient_temperature;

@@ -79,7 +79,7 @@ typedef struct _sensorData_t {
 typedef struct _storeData_t {
   float vo2;    // Vo2, ml/min/kg, mean value
   float ve;     // Ve, l/min, mean value
-  float vco2;   // Vco2, ml/min?, mean value
+  float vco2;   // Vco2, ml/min/kg, mean value
   float resp_rate;  // Breaths per minute 1/min
   float hr;     // Heart rate, 1/min, latest value
   float temperature;   // Ambient temperature [degC]

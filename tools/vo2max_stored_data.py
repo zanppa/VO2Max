@@ -36,7 +36,7 @@ stored_packet = 0x02  # Status byte indicating that this is a stored packet
 data_format_header = "<BBH"
 data_format_data = "<ffffffff"
 data_format_conf = "<HHH"
-headers = ["Time [s]", "Sample time [s]", "VO2 [l/min/kg]", "Ve [l/min]", "VCO2 [l/min/kg]", "Freq [1/min]", "HR [bpm]", "Temperature [degC]", "Pressure [hPa]", "O2 [%]"]
+headers = ["Time [s]", "Sample time [s]", "VO2 [ml/min/kg]", "Ve [l/min]", "VCO2 [ml/min/kg]", "Freq [1/min]", "HR [bpm]", "Temperature [degC]", "Pressure [hPa]", "O2 [%]"]
 columns = {'vo2':0,
            've':1,
            'vco2':2,
