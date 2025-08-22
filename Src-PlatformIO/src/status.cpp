@@ -192,11 +192,12 @@ void drawStatusBar()
 
   // Write battery voltage
   float volts = battery_voltage;
-  if(volts > 3.9) tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  else if(volts > 3.7) tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  else tft.setTextColor(TFT_RED, TFT_BLACK);
+  if(volts > 4.4) tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);       // Charger connected, at least 250 mV+150 mV drop from 5V
+  else if(volts > 3.7) tft.setTextColor(TFT_GREEN, TFT_BLACK);    // Full battery
+  else if(volts > 3.59) tft.setTextColor(TFT_YELLOW, TFT_BLACK);  // Possily 300 mV drop from battery to 3.3 V rail
+  else tft.setTextColor(TFT_RED, TFT_BLACK);                      // 3.3 V might not stay up --> possible errors
   tft.setCursor(0, 116, 2);
-  tft.printf("%3.1f V", volts);
+  tft.printf("%4.2fV", volts);
 
   // Write feature status on the bottom
   status = sensorGetStatus();
