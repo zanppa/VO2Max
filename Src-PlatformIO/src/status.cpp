@@ -85,36 +85,61 @@ private:
 
 
 static Gauge *screen1[] = {
-  new LabelGauge(20, 30, "HR"),
-  new Gauge(90, 30, &sensor_data_buf.hr),
-  new ColorLabelGauge(180, 30, "<3", &hr_blink, TFT_LIGHTGREY, TFT_RED),  // This one blinks when new data is received form HR meter
-  new LabelGauge(20, 55, "VO2"),
-  new Gauge(90, 55, &sensor_data_buf.vo2),
-  new LabelGauge(20, 80, "VE"),
-  new Gauge(90, 80, &sensor_data_buf.veMean),
+  new LabelGauge(10, 25, "VO2"),
+  new Gauge(80, 25, &sensor_data_buf.vo2, 6),
+  new LabelGauge(10, 70, "HR"),
+  new Gauge(80, 70, &sensor_data_buf.hr, 6),
+  new ColorLabelGauge(15, 90, "<3", &hr_blink, TFT_LIGHTGREY, TFT_RED),  // This one blinks when new data is received form HR meter
+  //new LabelGauge(20, 80, "VE"),
+  //new Gauge(90, 80, &sensor_data_buf.veMean),
 //  new ArcGauge(160, 80, &sensor_data_buf.flow_value, 4, 0, 200.0, 48),
 };
 
 static Gauge *screen2[] = {
-  new LabelGauge(20, 30, "Pa"),
-  new Gauge(70, 30, &sensor_data_buf.ambient_pressure),
-  new LabelGauge(180, 30, "hPa"),
-  new LabelGauge(20, 55, "Ta"),
-  new Gauge(70, 55, &sensor_data_buf.ambient_temperature),
-  new LabelGauge(180, 55, "C"),
-  new LabelGauge(20, 80, "Te"),
-  new Gauge(70, 80, &sensor_data_buf.exhale_temperature),
-  new LabelGauge(180, 80, "C"),
+  new LabelGauge(10, 30, "Vo2"),  // VO2 and max
+  new Gauge(70, 30, &sensor_data_buf.vo2),
+  new LabelGauge(140, 30, "/"),
+  new Gauge(165, 30, &sensor_data_buf.vo2Max),
+  new LabelGauge(10, 55, "Ve"), // Minute ventilation and max
+  new Gauge(70, 55, &sensor_data_buf.veMean),
+  new LabelGauge(140, 55, "/"),
+  new Gauge(165, 55, &sensor_data_buf.vo2Max),
+  new LabelGauge(10, 80, "Vco2"), // VCo2 and max
+  new Gauge(70, 80, &sensor_data_buf.vco2),
+  new LabelGauge(140, 80, "/"),
+  new Gauge(165, 80, &sensor_data_buf.vco2Max),
 };
 
 static Gauge *screen3[] = {
-  new LabelGauge(20, 30, "O2"),
-  new Gauge(90, 30, &sensor_data_buf.o2),
-  new LabelGauge(180, 30, "%"),
-  new LabelGauge(20, 55, "Vo2max"),
-  new Gauge(140, 55, &sensor_data_buf.vo2Max),
-  new LabelGauge(20, 80, "Vemax"),
-  new Gauge(140, 80, &sensor_data_buf.veMax),
+  new LabelGauge(10, 30, "RR"), // Respiratory rate
+  new Gauge(70, 30, &sensor_data_buf.resp_rate),
+  new LabelGauge(10, 55, "Rq"), // Respiratory quotient
+  new Gauge(70, 55, &sensor_data_buf.rq),
+  new LabelGauge(10, 80, "VT"), // Tidal volume
+  new Gauge(70, 80, &sensor_data_buf.ve),
+};
+
+static Gauge *screen4[] = {
+  new LabelGauge(10, 30, "Pa"), // Ambient pressure
+  new Gauge(70, 30, &sensor_data_buf.ambient_pressure),
+  new LabelGauge(175, 30, "hPa"),
+  new LabelGauge(10, 55, "Ta"), // Ambient temperature
+  new Gauge(70, 55, &sensor_data_buf.ambient_temperature),
+  new LabelGauge(175, 55, "`C"),
+  new LabelGauge(10, 80, "Te"), // Exhale temperature
+  new Gauge(70, 80, &sensor_data_buf.exhale_temperature),
+  new LabelGauge(175, 80, "`C"),
+};
+
+static Gauge *screenStatus[] = {
+  new LabelGauge(10, 24, "O2"), // O2 concentration %
+  new Gauge(70, 24, &sensor_data_buf.o2),
+  new LabelGauge(10, 47, "CO2"),  // CO2 concentration %
+  new Gauge(70, 47, &sensor_data_buf.co2),
+  new LabelGauge(10, 70, "kg"), // User weight
+  new Gauge(70, 70, &global_settings.userWeight),
+  new LabelGauge(10, 93, "k"),  // Flow correction factor
+  new Gauge(70, 93, &global_settings.flowCorrectionFactor),
 };
 
 
@@ -359,6 +384,7 @@ void initScreens()
   st_screen.add_screen(screen1, sizeof(screen1)/sizeof(screen1[0]), 1);
   st_screen.add_screen(screen2, sizeof(screen2)/sizeof(screen2[0]), 1);
   st_screen.add_screen(screen3, sizeof(screen3)/sizeof(screen3[0]), 1);
+  st_screen.add_screen(screenStatus, sizeof(screenStatus)/sizeof(screenStatus[0]), 1);
   setScreen(0);
 }
 
