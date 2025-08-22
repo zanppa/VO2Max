@@ -150,16 +150,23 @@ void clockTimer(TimerHandle_t xTimer)
   seconds_from_start++;
 }
 
+uint16_t battery_raw = 0.0;
 float battery_voltage = 0.0;
+float vref_scale = 1.0;
 
 float readBatteryVoltage()
 {
   digitalWrite(VO2_PIN_ADC_EN, HIGH);
-  vTaskDelay(pdMS_TO_TICKS(1));
-  float measurement = (float) analogRead(VO2_PIN_BAT_VOLT);
-  measurement = (measurement / 4095.0) * 7.26;
+  vTaskDelay(pdMS_TO_TICKS(10));
+  battery_raw = analogRead(VO2_PIN_BAT_VOLT);
+  float measurement = (float)battery_raw;
+  measurement = (measurement / 4095.0) * vref_scale * 3.548 * 2;    // 3.548 = 10^(11/20) = gain for 11dB attenuation, 2 = resistor division
   digitalWrite(VO2_PIN_ADC_EN, LOW);
   battery_voltage = measurement;
+
+  ESP_LOGD(TAG_VO2, "Battery raw %d", battery_raw);
+  ESP_LOGD(TAG_VO2, "Battery scaled %f V", measurement);
+
   return measurement;
 }
 
@@ -280,8 +287,15 @@ void setup() {
 
   // Setup ADC  for battery voltage measurement
   esp_adc_cal_characteristics_t adc_chars;
-  esp_adc_cal_value_t val_type = esp_adc_cal_characterize((adc_unit_t)ADC_UNIT_1, (adc_atten_t)ADC_ATTEN_DB_2_5, (adc_bits_width_t)ADC_WIDTH_BIT_12, 1100, &adc_chars);
+  esp_adc_cal_value_t val_type = esp_adc_cal_characterize((adc_unit_t)ADC_UNIT_1, (adc_atten_t)ADC_ATTEN_DB_11, (adc_bits_width_t)ADC_WIDTH_BIT_12, 1100, &adc_chars);
+  ESP_LOGD(TAG_VO2, "Battery reference %d", adc_chars.vref);
+  adc_attenuation_t attenuation = ADC_11db; // 11 dB can measure max 3.1 V
+  analogSetAttenuation(attenuation);  // Set generic attenuation as we only use ADC for battery
+  vref_scale = (float)adc_chars.vref / 1000.0;  // 4095 (100 % of scale) equals to vref so this is the scaling value
+  //pinMode(VO2_PIN_BAT_VOLT, INPUT);
+
   pinMode(VO2_PIN_ADC_EN, OUTPUT);
+  digitalWrite(VO2_PIN_ADC_EN, LOW);
 
   // Initialize status screens
   initScreens();
