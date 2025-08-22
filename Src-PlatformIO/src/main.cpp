@@ -169,8 +169,8 @@ float readBatteryVoltage()
   digitalWrite(VO2_PIN_ADC_EN, LOW);
   battery_voltage = measurement;
 
-  ESP_LOGD(TAG_VO2, "Battery raw %d", battery_raw);
-  ESP_LOGD(TAG_VO2, "Battery scaled %f V", measurement);
+  //ESP_LOGD(TAG_VO2, "Battery raw %d", battery_raw);
+  //ESP_LOGD(TAG_VO2, "Battery scaled %f V", measurement);
 
   return measurement;
 }
