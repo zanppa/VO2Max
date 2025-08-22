@@ -480,8 +480,12 @@ void copy_sensor_data()
   sensorData.veMean = veMean;  // liters / min
   sensorData.vco2 = 1000.0 * vco2 / weight;   // ml / kg / min
   sensorData.vco2Max = 1000.0 * vco2Max / weight; // ml / kg / min
-  sensorData.rq = vco2 / vo2;
   
+  if(vo2 > 0)
+    sensorData.rq = vco2 / vo2;
+  else
+    sensorData.rq = 0.0;
+
   if(lastBreathInterval != 0)
     sensorData.resp_rate = 60000.0 / (float)lastBreathInterval;   // Breaths per minute
   else
