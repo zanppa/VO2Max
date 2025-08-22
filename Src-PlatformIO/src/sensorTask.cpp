@@ -492,6 +492,7 @@ void copy_sensor_data()
   sensorData.exhale_temperature = exhale_temperature;
   sensorData.flow_value = currentPressure;  // Pa
   sensorData.o2 = currentO2;    // %
+  sensorData.co2 = currentCO2;  // %
   sensorData.errors = errorCounter;
 }
 

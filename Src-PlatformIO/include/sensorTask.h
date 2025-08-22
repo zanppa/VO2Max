@@ -61,6 +61,7 @@ typedef struct _sensorData_t {
   float ambient_temperature;  // Ambient air temperature [degC]
   float exhale_temperature;   // Exhale temperature from pressure sensor
   float o2;       // O2 sensor reading (raw value) [%]
+  float co2;      // CO2 sensor reading (raw value) [%]
   float flow_value;   // Instant value from the flow sensor (pressure) [Pa]
 
 // Extra sensors (outside the sensorTask)
