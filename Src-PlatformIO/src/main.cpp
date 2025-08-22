@@ -75,6 +75,10 @@
 #define VO2_PIN_ADC_EN  14
 #define VO2_PIN_BAT_VOLT  34
 
+// Custom, hand fit gain and offset values from ADC reading to battery voltage
+#define ADC_CUSTOM_GAIN   2.89
+#define ADC_CUSTOM_OFFSET 0.546
+
 #define PREFS_STORE_SIZE   sizeof(settings_t)
 Preferences preferences;    // To store configuration values to NVS (non-volatile storage) (instead of flash)
 
@@ -160,7 +164,8 @@ float readBatteryVoltage()
   vTaskDelay(pdMS_TO_TICKS(10));
   battery_raw = analogRead(VO2_PIN_BAT_VOLT);
   float measurement = (float)battery_raw;
-  measurement = (measurement / 4095.0) * vref_scale * 3.548 * 2;    // 3.548 = 10^(11/20) = gain for 11dB attenuation, 2 = resistor division
+  measurement = (measurement / 4095.0) * vref_scale * 2;    // vref = internal ADC reference, 2 = resistor division
+  measurement = (measurement * ADC_CUSTOM_GAIN) + ADC_CUSTOM_OFFSET; // Custom linear fit from ADC to voltage
   digitalWrite(VO2_PIN_ADC_EN, LOW);
   battery_voltage = measurement;
 
