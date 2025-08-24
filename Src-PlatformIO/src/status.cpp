@@ -103,7 +103,7 @@ static Gauge *screen2[] = {
   new LabelGauge(10, 55, "Ve"), // Minute ventilation and max
   new Gauge(70, 55, &sensor_data_buf.veMean),
   new LabelGauge(140, 55, "/"),
-  new Gauge(165, 55, &sensor_data_buf.vo2Max),
+  new Gauge(165, 55, &sensor_data_buf.veMax),
   new LabelGauge(10, 80, "Vco2"), // VCo2 and max
   new Gauge(70, 80, &sensor_data_buf.vco2),
   new LabelGauge(140, 80, "/"),
@@ -384,6 +384,7 @@ void initScreens()
   st_screen.add_screen(screen1, sizeof(screen1)/sizeof(screen1[0]), 1);
   st_screen.add_screen(screen2, sizeof(screen2)/sizeof(screen2[0]), 1);
   st_screen.add_screen(screen3, sizeof(screen3)/sizeof(screen3[0]), 1);
+  st_screen.add_screen(screen4, sizeof(screen4)/sizeof(screen4[0]), 1);
   st_screen.add_screen(screenStatus, sizeof(screenStatus)/sizeof(screenStatus[0]), 1);
   setScreen(0);
 }
