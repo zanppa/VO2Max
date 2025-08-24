@@ -416,9 +416,9 @@ bool calculate_volumes()
       if(useCO2Sensor) {
         expiredN2 = (1.0f - averageO2level - averageCO2level);
         vo2 = veMean * ((expiredN2 * 0.265) - averageO2level); // Inhale volume of O2
-        vco2 = veMean * (averageCO2level - initialCO2);
+        vco2 = veMean * (averageCO2level - (0.01 * initialCO2));
       } else {
-        vo2 = veMean * (initialO2 - averageO2level);     // veMean is already normalized to volume in 1 minute, result is l/minute
+        vo2 = veMean * ((0.01 * initialO2) - averageO2level);     // veMean is already normalized to volume in 1 minute, result is l/minute
       }
 
       if(vo2 > vo2Max) vo2Max = vo2;
