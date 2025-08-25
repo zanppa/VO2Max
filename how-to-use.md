@@ -7,13 +7,15 @@ The device is powered on either by plugging in USB-C cable or by connecting a Li
 
 After power on, the oxygen sensor requires 3 minutes of warm-up for measurement to be stable and accurate. A timer will be shown on the display counting down from 180 every second and displaying the oxygen sensor reading. This screen can be skipped if device has been previously running. After the time has passed or the wait was skipped, the oxygen sensor reading will be used as initial base-level oxygen contentration. For this reason, the sensor should be vented with fresh air if rebooted (do NOT blow into the sensor/mask as exhale air has low oxygen contenration!).
 
-A default status screen will be shown. In the status screen top row shows currently elapsed time. Then values (depending on the selected status screen) will be shown, like VO2 value and heart rate.
+A default status screen will be shown. In the status screen top row shows currently elapsed time. Then values (depending on the selected status screen) will be shown, like VO2 value and heart rate, or like in example below, ambient pressure and temperature and exhale temperature.
+
+![Status screen](images/status_1.jpg)
 
 On the bottom of the status screen a list of symbols show the status of the device:
 
 | Symbol | Description |
 |--------|-------------|
-| 3.82V  | Battery voltage. If USB cable is connected, charging supply voltage. Color indicates state: Blue=charger connected, green=full, yellow=normal, red=low |
+| 2.5V  | Battery voltage. If USB cable is connected, charging supply voltage. Color indicates state: Blue=charger connected, green=full, yellow=normal, red=low |
 | F      | Air flow (pressure) sensor status. Green=ok, red=error/disabled |
 | O2     | Oxygen sensor status. Green=ok, red=error/disabled |
 | P      | Ambient pressure sensor status. Green=ok, red=error/disabled |
@@ -29,6 +31,8 @@ The T-Display has two buttons on the right side. The top one, labeled ```M``` en
 ## Using the menu
 
 Menu is opened by pressing the top (```M```) button while in status screen. In the menu the top button (```>```) selects the currently highlighted menu item while the bottom button (```V```) moves to the next menu item. When reaching the last item, the bottom button jumps back to the first menu item. The menu structure is described below.
+
+![Menu 1st page](images/menu_1.jpg)
 
 | Menu item | Description |
 |-----------|-------------|
@@ -50,8 +54,14 @@ Menu is opened by pressing the top (```M```) button while in status screen. In t
 | HR scan... | Scan for Bluetooth LE heart rate sensors. Scans for about 10 seconds and connects to the first heart rate sensor found, if any. The sensor (address) will be stored and connected automatically when powering up |
 | Start over... | Reset all calculations, storage memory and elapsed time |
 
+![Menu 2nd page](images/menu_2.jpg)
+
+![Menu 3rd page](images/menu_3.jpg)
+
+
 Notes:
  - When selecting menu item with discrete set of options, the select button (top, ```>```) selects the next option. From the last option, the selection returns to the first
- - When entering numbers (like weight), top button (```+```) increases the value and bottom button (```-```)decreases. Waiting for 5 seconds without pressing any buttons accepts the value
+ - When entering numbers (like weight), top button (```+```) increases the value and bottom button (```-```)decreases. Waiting for 5 seconds without pressing any buttons accepts the value ![Setting a number](images/weight_1.jpg)
  - When entering text (like Wifi name), top button (```>```) goes to next character and bottom button (```V```) changes the currently selected character. Waiting for 5 seconds without pressing any buttons accepts the value
+ - Heart rate sensor scanning looks like following: ![HR sensor scanning](images/hr_scan.jpg) ![HR sensor found](images/hr_1.jpg)
 
