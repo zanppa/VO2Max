@@ -61,7 +61,10 @@ Menu is opened by pressing the top (```M```) button while in status screen. In t
 
 Notes:
  - When selecting menu item with discrete set of options, the select button (top, ```>```) selects the next option. From the last option, the selection returns to the first
- - When entering numbers (like weight), top button (```+```) increases the value and bottom button (```-```)decreases. Waiting for 5 seconds without pressing any buttons accepts the value ![Setting a number](images/weight_1.jpg)
+ - When entering numbers (like weight), top button (```+```) increases the value and bottom button (```-```)decreases. Waiting for 5 seconds without pressing any buttons accepts the value\
+![Setting a number](images/weight_1.jpg)
  - When entering text (like Wifi name), top button (```>```) goes to next character and bottom button (```V```) changes the currently selected character. Waiting for 5 seconds without pressing any buttons accepts the value
- - Heart rate sensor scanning looks like following: ![HR sensor scanning](images/hr_scan.jpg) ![HR sensor found](images/hr_1.jpg)
+ - Heart rate sensor scanning looks like following:\
+![HR sensor scanning](images/hr_scan.jpg)\
+![HR sensor found](images/hr_1.jpg)
 
