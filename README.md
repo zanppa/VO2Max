@@ -13,6 +13,9 @@ Current features:
  - [X] Bluetooth LE heart rate sensor support
  - [X] Streaming data over WiFi to computer
  - [X] PC companion program to monitor and record the WiFi stream
+ - [X] Recording values to memory buffer (1024 samples, at 15 s calculation interval over 4 hours)
+ - [X] Storing recorded values to a file (single file in flash, retained over power off)
+ - [X] PC tool to read and store the recorded values
  - [ ] Bluetooth [Golden Cheetah](https://www.goldencheetah.org/) support as VO2 Master (based on Ihewitt's code)
  
 Main architectural changes in the code:
@@ -21,6 +24,14 @@ Main architectural changes in the code:
  - Lower priority tasks like bluetooth, wifi and display do not interrupt sensor reading
  - Code is divided to "sub modules" for easier upkeep
  
+## Usage
+This VO2Max measurement device is designed to have two operation modes:
+
+1. Stand-alone use. In this mode the device is used independently and handles all calculations internally. Values can be monitored from the device's display, and the data is stored to memory (and optionally to flash memory). The stored values can later be transferred to a computer via WiFi.
+2. Real-time monitoring mode. In this mode a computer is connected to the device via WiFi and all measured quantities are transferred to the computer in real time. The computer can record the values and/or do the calculations (of course, also the VO2Max's calculated values are transferred).
+
+For detailed usage info see [how-to-use.md](how-to-use.md).
+
 ## Hardware
 This is a listing of the hardware that is used and supported by the code and 3D models. Some of the hardware were different from the reference projects for availability reasons in the EU, or due to technical reasons like mounting.
 
@@ -78,10 +89,10 @@ Finally the Sensirion SDP801 can be soldered to the distribution board.
 Main body consists of a single 3D-printed main part. Support is needed at the bottom parts and about 6 mm outer brim should be used to ensure that the part stays upright. With a bed-slinger printer, orient the print so that the wide side is parallel to the moving axis.
 
  1. Print the body and remove all support material
- 2. Mount the oxygen sensor on top with 4x 8mm screws
+ 2. Mount the oxygen sensor on top with 4x 2.5x8mm screws
  3. Mount the ambient pressure/temperature sensor on the side with 2x 8mm screws
  4. Place the O-rings on the recesses of the pressure sensor location
- 5. Mount the SDP801 pressure sensor with 2x 16mm screws
+ 5. Mount the SDP801 pressure sensor with 2x 2.5x16mm screws
  6. Wire the battery terminals to the T-display battery connector
  7. Install the battery terminals and connect the connector to T-display
  6. Place the display on the front of the unit
@@ -93,7 +104,7 @@ Note that the battery terminals nor the power switch are currently included in t
 The battery holder might be a bit tight, so some sanding/cutting of the edges may be necessary.
  
 ## Flashing the firmware
-The firmware was built with Arduino IDE v 2.3.2. Using the Board Manager, one needs to install esp32 by Espressif (version 3.0.2).
+The firmware was built with PlatformIO v core 6.1.18, home 3.4.4. One needs to install lilygo-t-display board (or it may get installed automatically when building...)
 
 Following external libraries are needed:
 
@@ -104,24 +115,25 @@ Other drivers are included in the repository with necessary modifications.
 
 To build the software select following as the board settings:
 
- - Board: ESP32 Dev Module
- - Upload Speed: 921600
- - CPU Frequency: 240Mhz (WiFi/BT)
- - Flash Frequency: 80Mhz
- - Flash Mode: QIO
- - Flash Size: 4MB (32Mb)
- - Partition Scheme: Default 4MB with spiffs (1.2MB APP/1.5 SPIFFS)
- - Core Debug Level: None --> For debugging can set also different values, for release select None
- - PSRAM: Disabled
+ * Board: Lilygo-t-display
+ * Upload Speed: 921600
+ * CPU Frequency: 240Mhz (WiFi/BT)
+ * Flash Frequency: 80Mhz
+ * Flash Mode: QIO
+ * Partition Scheme: Default.csv [4MB with spiffs (1.2MB APP/1.5 SPIFFS)]
+ * Core Debug Level: None --> For debugging can set also different values, for release select None
+ * PSRAM: No
 
  
 # Disclaimer
+This is not a medical device! Use at your own responsibility.
+
 This repository contains code, models and similar for educational purposes only and are supposed 
 to be used for reference. Everything is provided as is, without any warranty. The author is not 
 liable for any damages or other liability arising from use of anything provided here.
 
 # Copyright
-Copyright 2024 Lauri Peltonen
+Copyright 2024, 2025 Lauri Peltonen
 
 Licensed under GPLv3.
 

@@ -32,7 +32,7 @@ record = True       # Record data also as csv file
 
 realtime_packet = 0x01  # Status byte indicating that this is a realtime packet
 data_format = "<BBHfffffffffff"
-headers = ["Time [s]", "Elapsed time [s]", "Flow [Pa]", "O2 [%]", "Ve [l/min]", "VO2 [l/min/kg]", "VCO2 [l/min/kg]", "Freq [1/min]", "P [hPa]", "T [C]", "Texh [C]", "HR [bpm]", "RR [ms]", "Errors"]
+headers = ["Time [s]", "Elapsed time [s]", "Status", "Reserved", "Errors", "Flow [Pa]", "O2 [%]", "Ve [l/min]", "VO2 [l/min/kg]", "VCO2 [l/min/kg]", "Freq [1/min]", "P [hPa]", "T [C]", "Texh [C]", "HR [bpm]", "RR [ms]"]
 columns = {'status':0,
            'dummy':1,
            'err':2,

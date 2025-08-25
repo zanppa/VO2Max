@@ -1,7 +1,7 @@
 /*
  * VO2 sensor for measuring VO2 and VO2max during exercise
  *
- * Copyright (C) 2024 Lauri Peltonen
+ * Copyright (C) 2024, 2025 Lauri Peltonen
  * GPL V3
  *
  * Based heavily on IHewitt's VO2max project
@@ -15,25 +15,27 @@
  *   BMP388 ambient pressure sensor (DFRobot Gravity BMP388)
  *
  *
- * Arduino IDE settings:
+ * PlatformIO board settings:
  *
- * Board: ESP32 Dev Module
+ * Board: Lilygo-t-display
  * Upload Speed: 921600
  * CPU Frequency: 240Mhz (WiFi/BT)
  * Flash Frequency: 80Mhz
  * Flash Mode: QIO
- * Flash Size: 4MB (32Mb)
- * Partition Scheme: Default 4MB with spiffs (1.2MB APP/1.5 SPIFFS)
+ * Partition Scheme: Default.csv [4MB with spiffs (1.2MB APP/1.5 SPIFFS)]
  * Core Debug Level: None --> For debugging can set also different values, for release select None
- * PSRAM: Disabled
+ * PSRAM: No
  *
  * Remember to modify the TFT_eSPI configuration file to select T-Display!
  * Select this one line in "user_setup_select.h"
  * #include <User_Setups/Setup25_TTGO_T_Display.h>    // Setup file for ESP32 and TTGO T-Display ST7789V SPI bus TFT
- *
+ * and don't forget to comment out the custom user setup
+ * //#include <User_Setup.h>           // Default setup is root library folder
+ * 
+ * 
  * With NimBLE-Arduino the code just barely fits into default partition.
  * In case of problems (e.g. if program does not fit with debug level = info), one can use
- *    Huge APP (3 MB No OTA / 1 MB SPIFFS)
+ *    huge_app.csv / Huge APP (3 MB No OTA / 1 MB SPIFFS)
  * partition scheme to make the program fit.
  *
  */
@@ -57,7 +59,7 @@
 
 #include <TFT_eSPI.h>
 
-#include "EEPROM.h"
+#include "Preferences.h"
 
 #include "config.h"
 #include "sensorTask.h"
@@ -66,15 +68,19 @@
 #include "status.h"
 #include "menu.h"
 #include "BLE_HRBelt.h"
+#include "files.h"
 
 
 #define VO2_PIN_DEBUG   27
 #define VO2_PIN_ADC_EN  14
 #define VO2_PIN_BAT_VOLT  34
 
-#define EEPROM_STORE_SIZE   sizeof(settings_t)
-#define EEPROM_STORE_START  2   // first is magic and 2nd is version, so data starts from offset 2
+// Custom, hand fit gain and offset values from ADC reading to battery voltage
+#define ADC_CUSTOM_GAIN   2.89
+#define ADC_CUSTOM_OFFSET 0.546
 
+#define PREFS_STORE_SIZE   sizeof(settings_t)
+Preferences preferences;    // To store configuration values to NVS (non-volatile storage) (instead of flash)
 
 // Default settings
 settings_t global_settings = {
@@ -132,6 +138,8 @@ void debugPrintConfig(void)
   Serial.println(global_settings.co2sensor_enable);
   Serial.print(" Wifi: ");
   Serial.println(global_settings.wifi_enable);
+  Serial.print(" Wifi AP name: ");
+  Serial.println(global_settings.wifiStationName);
   Serial.print(" Golden Cheetah: ");
   Serial.println(global_settings.cheetah_enable);
   Serial.print(" HR Address: ");
@@ -146,70 +154,108 @@ void clockTimer(TimerHandle_t xTimer)
   seconds_from_start++;
 }
 
+uint16_t battery_raw = 0.0;
 float battery_voltage = 0.0;
+float vref_scale = 1.0;
 
 float readBatteryVoltage()
 {
   digitalWrite(VO2_PIN_ADC_EN, HIGH);
-  vTaskDelay(pdMS_TO_TICKS(1));
-  float measurement = (float) analogRead(VO2_PIN_BAT_VOLT);
-  measurement = (measurement / 4095.0) * 7.26;
+  vTaskDelay(pdMS_TO_TICKS(10));
+  battery_raw = analogRead(VO2_PIN_BAT_VOLT);
+  float measurement = (float)battery_raw;
+  measurement = (measurement / 4095.0) * vref_scale * 2;    // vref = internal ADC reference, 2 = resistor division
+  measurement = (measurement * ADC_CUSTOM_GAIN) + ADC_CUSTOM_OFFSET; // Custom linear fit from ADC to voltage
   digitalWrite(VO2_PIN_ADC_EN, LOW);
   battery_voltage = measurement;
+
+  //ESP_LOGD(TAG_VO2, "Battery raw %d", battery_raw);
+  //ESP_LOGD(TAG_VO2, "Battery scaled %f V", measurement);
+
   return measurement;
 }
 
-// Load settings structure from EEPROM
+// Load settings structure from NVS
 bool loadSettings() {
   uint8_t b;
-  // Check magic and version to make sure EEPROM contents are compatible
-  if((b = EEPROM.read(0)) != SETTINGS_MAGIC) {
-    ESP_LOGE(TAG_VO2, "EEPROM: Magic does not match (%x != %x)", b, SETTINGS_MAGIC);
+  settings_t new_settings;
+
+  if(!preferences.begin("vo2max", true)) {  // Open NVS namespace for reading
+    ESP_LOGI(TAG_VO2, "Preferences: No previous preferences stored.");
+    preferences.end();
     return false;
   }
-  if((b = EEPROM.read(1)) != SETTINGS_VERSION) {
-    ESP_LOGE(TAG_VO2, "EEPROM: Version does not match (%d != %d)", b, SETTINGS_VERSION);
+
+  // Check magic and version to make sure NVS contents are compatible
+  if(!preferences.isKey("magic") || (b = preferences.getUChar("magic", 0)) != SETTINGS_MAGIC) {
+    ESP_LOGE(TAG_VO2, "Preferences: Magic does not match (%x != %x)", b, SETTINGS_MAGIC);
+    preferences.end();
+    return false;
+  }
+  if(!preferences.isKey("version") || (b = preferences.getUChar("version", 0)) != SETTINGS_VERSION) {
+    ESP_LOGE(TAG_VO2, "Preferences: Version does not match (%d != %d)", b, SETTINGS_VERSION);
+    preferences.end();
     return false;
   }
 
-  // Read rest of the settings
-  for(int i=0; i<EEPROM_STORE_SIZE; i++)
-      ((byte *)&global_settings)[i] = EEPROM.read(i + EEPROM_STORE_START);
+  if(!preferences.isKey("prefs")) {
+    ESP_LOGE(TAG_VO2, "Preferences: prefs key not found");
+    preferences.end();
+    return false;
+  }
 
-  ESP_LOGI(TAG_VO2, "EEPROM: Settings restored");
+  if((b = preferences.getBytesLength("prefs")) != PREFS_STORE_SIZE) {
+    ESP_LOGE(TAG_VO2, "Preferences: prefs data length not correct (%d != %d)", b, PREFS_STORE_SIZE);
+    preferences.end();
+    return false;
+  }
 
+  // Read the settings to temporary array
+  if(preferences.getBytes("prefs", (void *)&new_settings, PREFS_STORE_SIZE) != PREFS_STORE_SIZE) {
+    ESP_LOGE(TAG_VO2, "Preferences: Failed to load preference values!");
+    preferences.end();
+    return false;
+  }
+
+  // Data should be succesfully restored, copy them to the correct array
+  memcpy(&global_settings, &new_settings, PREFS_STORE_SIZE);
+
+  ESP_LOGI(TAG_VO2, "Preferences: Settings restored");
+
+  preferences.end();
   return true;
 }
 
-// Store current settings struct to EEPROM
+// Store current settings struct to NVS
 void storeSettings() {
-  bool changed = false;
+  bool success = false;
 
-  // Check magic and version
-  if(EEPROM.read(0) != SETTINGS_MAGIC) {
-    EEPROM.write(0, SETTINGS_MAGIC);
-    changed = true;
-  }
+  ESP_LOGI(TAG_VO2, "Preferences: Storing settings");
 
-  if(EEPROM.read(1) != SETTINGS_VERSION) {
-    EEPROM.write(1, SETTINGS_VERSION);
-    changed = true;
+  if(!preferences.begin("vo2max", false)) { // Open NVS namespace for read and write
+    ESP_LOGE(TAG_VO2, "Preferences: Namespace creation failed");
+    preferences.end();
+    return;
   }
-
-  for(int i=0; i<EEPROM_STORE_SIZE; i++) {
-    uint8_t b = EEPROM.read(i + EEPROM_STORE_START);
-    uint8_t sb = ((byte *)&global_settings)[i];
-    if (b != sb) {
-      EEPROM.write(i + EEPROM_STORE_START, sb);
-      changed = true;
-    }
+  if(preferences.putBytes("prefs", (void *)&global_settings, PREFS_STORE_SIZE) != PREFS_STORE_SIZE) {
+    ESP_LOGE(TAG_VO2, "Preferences: Could not write preferences");
+    preferences.end();
+    return;
   }
-  if(changed) {
-    EEPROM.commit();
-    ESP_LOGI(TAG_VO2, "EEPROM: Commit");
+  if(!preferences.putUChar("magic", SETTINGS_MAGIC)) {
+    ESP_LOGE(TAG_VO2, "Preferences: Could not write magic");
+    preferences.end();
+    return;
   }
-
-  ESP_LOGI(TAG_VO2, "EEPROM: Settings stored");
+  if(!preferences.putUChar("version", SETTINGS_VERSION)) {
+    ESP_LOGE(TAG_VO2, "Preferences: Could not write version");
+    preferences.end();
+    return;
+  }
+  
+  ESP_LOGI(TAG_VO2, "Preferences: Settings stored");
+  ESP_LOGD(TAG_VO2, "Preferences: %d entries free", preferences.freeEntries());
+  preferences.end();
 }
 
 
@@ -221,16 +267,11 @@ void setup() {
   pinMode(BUTTON_1_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
 
-  configASSERT(EEPROM_STORE_SIZE+2 <= 512); // Sanity check
-
-  // Initialize EEPROM, also add 2 bytes for version and magic in addition to settings data
-  EEPROM.begin(EEPROM_STORE_SIZE + 2);
-
   // Debug print default config
-  debugPrintConfig();
+  // debugPrintConfig();
 
   // If upper button is held down during boot, reset to default settings,
-  // i.e. do not read from EEPROM
+  // i.e. do not read from NVS
   if(digitalRead(BUTTON_2_PIN)) // Returns true if button is not pressed
     loadSettings();
   else 
@@ -251,8 +292,15 @@ void setup() {
 
   // Setup ADC  for battery voltage measurement
   esp_adc_cal_characteristics_t adc_chars;
-  esp_adc_cal_value_t val_type = esp_adc_cal_characterize((adc_unit_t)ADC_UNIT_1, (adc_atten_t)ADC_ATTEN_DB_2_5, (adc_bits_width_t)ADC_WIDTH_BIT_12, 1100, &adc_chars);
+  esp_adc_cal_value_t val_type = esp_adc_cal_characterize((adc_unit_t)ADC_UNIT_1, (adc_atten_t)ADC_ATTEN_DB_11, (adc_bits_width_t)ADC_WIDTH_BIT_12, 1100, &adc_chars);
+  ESP_LOGD(TAG_VO2, "Battery reference %d", adc_chars.vref);
+  adc_attenuation_t attenuation = ADC_11db; // 11 dB can measure max 3.1 V
+  analogSetAttenuation(attenuation);  // Set generic attenuation as we only use ADC for battery
+  vref_scale = (float)adc_chars.vref / 1000.0;  // 4095 (100 % of scale) equals to vref so this is the scaling value
+  //pinMode(VO2_PIN_BAT_VOLT, INPUT);
+
   pinMode(VO2_PIN_ADC_EN, OUTPUT);
+  digitalWrite(VO2_PIN_ADC_EN, LOW);
 
   // Initialize status screens
   initScreens();
@@ -261,6 +309,9 @@ void setup() {
   buttonInit();
   attachInterrupt(BUTTON_1_PIN, buttonInterrupt, CHANGE);
   attachInterrupt(BUTTON_2_PIN, buttonInterrupt, CHANGE);
+
+  // Initialize filesystem for storage
+  init_filesystem();
 
   // Create other tasks
   xTaskCreate(sensorTask, "sensor", 4096, nullptr, PRIORITY_SENSORTASK, &task_sensorTask);
@@ -273,7 +324,7 @@ void setup() {
   timer_clock = xTimerCreate("clock", pdMS_TO_TICKS(1000), pdTRUE, nullptr, clockTimer);
   xTimerStart(timer_clock, 0);
 
-  // Update initial configuration, default or from eeprom
+  // Update initial configuration, default or from NVS
   sensorSetConfiguration();
 
   // Queue automatic start of other features that may also be disabled
